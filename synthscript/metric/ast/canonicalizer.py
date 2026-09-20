@@ -15,7 +15,10 @@ from pylatexenc.latexwalker import (
 
 from synthscript.metric.ast.macro_groups import (
     FRACTION_MACROS,
+    GROUP_SPLITTING_MACROS,
     MACRO_ALIASES,
+    STYLE_DECLARATIONS,
+    STYLE_MACROS,
     TRANSPARENT_MACROS,
 )
 from synthscript.metric.ast.node import CanonicalNode, NodeKind, SourceSpan
@@ -56,7 +59,10 @@ class LatexCanonicalizer:
                 result.extend(converted)
             else:
                 result.append(converted)
-        return self._combine_scripts(self._merge_text_nodes(result))
+
+        result = self._combine_scripts(self._merge_text_nodes(result))
+        result = self._normalize_style_declarations(result)
+        return self._normalize_group_splitting(result)
 
     def _visit(self, node: LatexNode) -> CanonicalNode | list[CanonicalNode] | None:
         """Processes one pylatexenc node into its canonical representation."""
@@ -205,13 +211,136 @@ class LatexCanonicalizer:
         )
         return CanonicalNode(NodeKind.TEXT, value=base.value[-1], span=base_span)
 
-    def _group(self, node: LatexGroupNode) -> CanonicalNode:
-        """Preserve a group and distinguish optional brackets from braces"""
+    @staticmethod
+    def _is_plain_macro(node: CanonicalNode, names: Collection[str]) -> bool:
+        """Return whether a node is an argumentless macro in the given names."""
+        return node.kind == NodeKind.MACRO and not node.children and node.value in names
+
+    def _normalize_style_declarations(
+        self, nodes: list[CanonicalNode]
+    ) -> list[CanonicalNode]:
+        """Apply legacy style declarations to following siblings in their scope."""
+        result: list[CanonicalNode] = []
+        segment: list[CanonicalNode] = []
+        active_style: str | None = None
+
+        def flush_segment() -> None:
+            if not segment:
+                return
+            if active_style is None:
+                result.extend(segment)
+            else:
+                result.append(
+                    CanonicalNode(
+                        kind=NodeKind.STYLE,
+                        value=active_style,
+                        children=(
+                            CanonicalNode(
+                                kind=NodeKind.GROUP,
+                                children=tuple(segment),
+                            ),
+                        ),
+                    )
+                )
+            segment.clear()
+
+        for node in nodes:
+            if self._is_plain_macro(node, STYLE_DECLARATIONS):
+                flush_segment()
+                source_name = node.value
+                assert source_name is not None
+                active_style = STYLE_DECLARATIONS[source_name]
+            elif self._is_plain_macro(node, GROUP_SPLITTING_MACROS):
+                flush_segment()
+                result.append(node)
+            else:
+                segment.append(node)
+        flush_segment()
+        return result
+
+    @staticmethod
+    def _sequence_group(nodes: list[CanonicalNode]) -> CanonicalNode:
+        """Keep a multi-node operand together as one canonical group."""
+        if len(nodes) == 1 and nodes[0].kind == NodeKind.GROUP:
+            return nodes[0]
+        return CanonicalNode(kind=NodeKind.GROUP, children=tuple(nodes))
+
+    def _fraction_operand(self, nodes: list[CanonicalNode]) -> CanonicalNode:
+        """Use a single operand directly and group a longer sequence."""
+        if len(nodes) == 1:
+            return self._unwrap_group(nodes[0])
+        return self._sequence_group(nodes)
+
+    def _normalize_group_splitting(
+        self, nodes: list[CanonicalNode]
+    ) -> list[CanonicalNode]:
+        """Replace one infix splitter with its canonical two-argument node."""
+        split_indexes = [
+            index
+            for index, node in enumerate(nodes)
+            if self._is_plain_macro(node, GROUP_SPLITTING_MACROS)
+        ]
+        if len(split_indexes) != 1:
+            return nodes
+
+        index = split_indexes[0]
+        left = nodes[:index]
+        right = nodes[index + 1 :]
+        if not left or not right:
+            return nodes
+
+        source_name = nodes[index].value
+        assert source_name is not None
+        canonical_name = GROUP_SPLITTING_MACROS[source_name]
+        if canonical_name == "frac":
+            return [
+                CanonicalNode(
+                    kind=NodeKind.FRACTION,
+                    children=(
+                        self._fraction_operand(left),
+                        self._fraction_operand(right),
+                    ),
+                )
+            ]
+
+        return [
+            CanonicalNode(
+                kind=NodeKind.MACRO,
+                value=canonical_name,
+                children=(
+                    self._sequence_group(left),
+                    self._sequence_group(right),
+                ),
+            )
+        ]
+
+    def _group(self, node: LatexGroupNode) -> CanonicalNode | list[CanonicalNode]:
+        """Remove grouping syntax consumed by declarations or infix macros."""
+        direct_macros = {
+            child.macroname
+            for child in node.nodelist
+            if isinstance(child, LatexMacroNode)
+        }
+        contains_declaration = bool(direct_macros & STYLE_DECLARATIONS.keys())
+        contains_splitter = bool(direct_macros & GROUP_SPLITTING_MACROS.keys())
+
         value = None if node.delimiters == ("{", "}") else repr(node.delimiters)
+        children = tuple(self._visit_many(node.nodelist))
+        if value is None and contains_declaration:
+            return list(children)
+        if value is None and contains_splitter and len(children) == 1:
+            return children[0]
+        if (
+            value is None
+            and len(children) == 1
+            and children[0].kind == NodeKind.GROUP
+            and children[0].value is None
+        ):
+            children = children[0].children
         return CanonicalNode(
             kind=NodeKind.GROUP,
             value=value,
-            children=tuple(self._visit_many(node.nodelist)),
+            children=children,
             span=self._span(node),
         )
 
@@ -220,21 +349,23 @@ class LatexCanonicalizer:
         node: CanonicalNode, *, allow_optional: bool = False
     ) -> CanonicalNode:
         """
-        Remove a single-child argument group when its delimiters don't add structure.
+        Remove a single child argument group when its delimiters don't add structure
         """
-        if (
+        while (
             node.kind == NodeKind.GROUP
             and (node.value is None or allow_optional)
             and len(node.children) == 1
         ):
-            return node.children[0]
+            node = node.children[0]
         return node
 
     def _argument(self, node) -> CanonicalNode:
-        """Keep one parsed argument together if conversion expands its contents."""
+        """Keep one parsed argument together if a conversion expands its content"""
         converted = self._visit(node)
-        if isinstance(converted, CanonicalNode):
+        if isinstance(converted, CanonicalNode) and converted.kind == NodeKind.GROUP:
             return converted
+        if isinstance(converted, CanonicalNode):
+            converted = [converted]
         return CanonicalNode(
             kind=NodeKind.GROUP,
             children=tuple(converted or ()),
@@ -242,7 +373,7 @@ class LatexCanonicalizer:
         )
 
     def _macro_arguments(self, node) -> list[CanonicalNode]:
-        """Convert present macro or environment arguments in source order."""
+        """Convert a macro/environment's arguments in source order."""
         nodeargd = getattr(node, "nodeargd", None)
         if nodeargd is None or not nodeargd.argnlist:
             return []
@@ -262,7 +393,7 @@ class LatexCanonicalizer:
     def _fraction(
         self, node: LatexMacroNode, arguments: list[CanonicalNode]
     ) -> CanonicalNode:
-        """When enabled, store a fraction's numerator and denominator as children."""
+        """Store a fraction: numerator and denominator"""
         if not self.config.normalize_fraction_style or len(arguments) != 2:
             return CanonicalNode(
                 kind=NodeKind.MACRO,
@@ -282,7 +413,7 @@ class LatexCanonicalizer:
     def _sqrt(
         self, node: LatexMacroNode, arguments: list[CanonicalNode]
     ) -> CanonicalNode:
-        """Store the radicand first, followed by an optional root index."""
+        """Store a square root: radicand first, then an optional index."""
         if len(arguments) not in (1, 2):
             return CanonicalNode(
                 kind=NodeKind.MACRO,
@@ -303,6 +434,8 @@ class LatexCanonicalizer:
         arguments: list[CanonicalNode],
     ) -> list[CanonicalNode] | None:
         """Discard while keeping its content."""
+        # TODO: this maybe has more to do with the metric and is not a good idea to just
+        # remove them... it needs thinking
         if len(arguments) != 1:
             return None
         argument = arguments[0]
@@ -312,7 +445,12 @@ class LatexCanonicalizer:
 
     def _macro(self, node: LatexMacroNode) -> CanonicalNode | list[CanonicalNode]:
         """Apply aliases and special macro rules, preserving other macros."""
-        name = self.config.macro_aliases.get(node.macroname, node.macroname)
+        if node.macroname in STYLE_DECLARATIONS or node.macroname in (
+            GROUP_SPLITTING_MACROS
+        ):
+            name = node.macroname
+        else:
+            name = self.config.macro_aliases.get(node.macroname, node.macroname)
         arguments = self._macro_arguments(node)
         if name in FRACTION_MACROS:
             return self._fraction(node, arguments)
@@ -322,23 +460,28 @@ class LatexCanonicalizer:
             transparent = self._transparent_macro(arguments)
             if transparent is not None:
                 return transparent
+        kind = NodeKind.STYLE if name in STYLE_MACROS else NodeKind.MACRO
+
         return CanonicalNode(
-            kind=NodeKind.MACRO,
+            kind=kind,
             value=name,
             children=tuple(arguments),
             span=self._span(node),
         )
 
     def _environment(self, node: LatexEnvironmentNode) -> CanonicalNode:
-        """Keep environment arguments separate from its body nodes"""
-        arguments = CanonicalNode(
-            kind=NodeKind.ARGUMENTS,
-            children=tuple(self._macro_arguments(node)),
-        )
+        """Keep present environment arguments separate from its body nodes."""
+        arguments = self._macro_arguments(node)
+        children: tuple[CanonicalNode, ...] = tuple(self._visit_many(node.nodelist))
+        if arguments:
+            children = (
+                CanonicalNode(kind=NodeKind.ARGUMENTS, children=tuple(arguments)),
+                *children,
+            )
         return CanonicalNode(
             kind=NodeKind.ENVIRONMENT,
             value=node.environmentname,
-            children=(arguments, *self._visit_many(node.nodelist)),
+            children=children,
             span=self._span(node),
         )
 

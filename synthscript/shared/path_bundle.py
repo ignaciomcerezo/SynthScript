@@ -3,6 +3,9 @@ from os import getcwd
 from pathlib import Path
 from typing import Literal
 
+import cv2
+import numpy as np
+
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
 
@@ -72,7 +75,7 @@ class PathBundle:
     @staticmethod
     def change_image_category_path(
         image_path: Path, destination_category: Literal["raw", "stroke", "background"]
-    ):
+    ) -> Path:
         """
         Gets another the corresponding image from a different category. For example, from a background image,
         with destination_category='raw', gets the corresponding raw image.
@@ -166,11 +169,42 @@ class PathBundle:
             and self.get_stroke_image_path(page_name).exists()
         )
 
-    def get_raw_image_path(self, page_name: str | int) -> Path:
-        return self.raw_images_path / (str(page_name) + ".png")
+    def get_raw_image_path(self, page_name: str | int, suffix: str = ".png") -> Path:
+        return self.raw_images_path / (str(page_name) + suffix)
 
-    def get_stroke_image_path(self, page_name: str | int) -> Path:
-        return self.stroke_images_path / (str(page_name) + ".png")
+    def get_stroke_image_path(self, page_name: str | int, suffix: str = ".png") -> Path:
+        return self.stroke_images_path / (str(page_name) + suffix)
 
-    def get_background_image_path(self, page_name: str | int) -> Path:
-        return self.background_images_path / (str(page_name) + ".png")
+    def get_background_image_path(
+        self, page_name: str | int, suffix: str = ".png"
+    ) -> Path:
+        return self.background_images_path / (str(page_name) + suffix)
+
+    @staticmethod
+    def load_image_grayscale_np(path: Path) -> np.ndarray:
+        img = cv2.imdecode(
+            np.fromfile(path, dtype=np.uint8),
+            cv2.IMREAD_GRAYSCALE,
+        )
+        if img is None:
+            raise ValueError(f"Error while loading the image at {path}.")
+        return img
+
+    def load_background_image(
+        self, page_name: str | int, suffix: str = ".png"
+    ) -> np.ndarray:
+        return self.load_image_grayscale_np(
+            self.get_background_image_path(page_name, suffix=suffix)
+        )
+
+    def load_raw_image(self, page_name: str | int, suffix: str = ".png") -> np.ndarray:
+        return self.load_image_grayscale_np(
+            self.get_raw_image_path(page_name, suffix=suffix)
+        )
+
+    def load_stroke_image(
+        self, page_name: str | int, suffix: str = ".png"
+    ) -> np.ndarray:
+        return self.load_image_grayscale_np(
+            self.get_stroke_image_path(page_name, suffix=suffix)
+        )

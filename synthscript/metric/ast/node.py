@@ -24,6 +24,8 @@ class NodeKind(Enum):
     SUBSCRIPT = "subscript"
     SUBSUP = "subsup"
 
+    STYLE = "style"
+
 
 @dataclass(frozen=True, slots=True)
 class SourceSpan:
@@ -33,7 +35,6 @@ class SourceSpan:
 
 @dataclass(frozen=True, slots=True)
 class CanonicalNode:
-
     kind: NodeKind
     value: str | None = None
     children: tuple[CanonicalNode, ...] = ()

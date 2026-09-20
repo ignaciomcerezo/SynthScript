@@ -111,7 +111,7 @@ def flatten_latex(current: CanonicalNode) -> str:
         return (current.value or "") + "".join(
             _argument_latex_flatten(c) for c in children
         )
-    if kind == NodeKind.MACRO:
+    if kind in {NodeKind.MACRO, NodeKind.STYLE}:
         return (
             "\\"
             + (current.value or "")

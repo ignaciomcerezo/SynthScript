@@ -16,7 +16,7 @@ dependencies = [
     "shapely>=2.1.2",
     "tqdm>=4.67.3",
     "torch",
-    "opencv-python-headless>=4.13.0.92",
+    "opencv-python",
 ]
 
 [project.optional-dependencies]
