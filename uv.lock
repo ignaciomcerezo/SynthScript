@@ -4019,6 +4019,7 @@ metric = [
     { name = "pylatexenc" },
     { name = "python-levenshtein" },
     { name = "rapidfuzz" },
+    { name = "zss" },
 ]
 train = [
     { name = "accelerate" },
@@ -4094,6 +4095,7 @@ requires-dist = [
     { name = "unsloth", marker = "sys_platform == 'linux' and extra == 'train'", git = "https://github.com/unslothai/unsloth.git" },
     { name = "unsloth-zoo", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=2026.4.8" },
     { name = "xformers", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=0.0.35" },
+    { name = "zss", marker = "extra == 'metric'", specifier = ">=1.2.0" },
 ]
 provides-extras = ["train", "metric", "dev"]
 
@@ -5096,3 +5098,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/51/47/3fa2286c3cb162c71cdb34c4224d5745a1ceceb391b2bd9b19b668a8d724/yarl-1.23.0-cp314-cp314t-win_arm64.whl", hash = "sha256:44bb7bef4ea409384e3f8bc36c063d77ea1b8d4a5b2706956c0d6695f07dcc25", size = 86041, upload-time = "2026-03-01T22:07:49.026Z" },
     { url = "https://files.pythonhosted.org/packages/69/68/c8739671f5699c7dc470580a4f821ef37c32c4cb0b047ce223a7f115757f/yarl-1.23.0-py3-none-any.whl", hash = "sha256:a2df6afe50dea8ae15fa34c9f824a3ee958d785fd5d089063d960bae1daa0a3f", size = 48288, upload-time = "2026-03-01T22:07:51.388Z" },
 ]
+
+[[package]]
+name = "zss"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/d1/ed34d12f55d07cc1efb61d74fb2f64f46a705557f5bdd1ef1b810f0e2ec5/zss-1.2.0.tar.gz", hash = "sha256:07bb937441929ccb82961f4f7b80fbce9e2b20d0e46ddcbcbc1fcb094f585b50", size = 9790, upload-time = "2018-03-12T15:02:20.208Z" }

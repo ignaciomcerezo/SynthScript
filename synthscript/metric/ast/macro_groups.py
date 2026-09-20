@@ -2,6 +2,9 @@
 # macro synonym: macro to be replaced with
 MACRO_ALIASES = {
     "to": "rightarrow",
+    "longrightarrow": "rightarrow",
+    "longleftarrow": "leftararow",
+    "longleftrightarrow": "leftrightarrow",
     "lnot": "neg",
     "gets": "leftarrow",
     "le": "leq",
@@ -11,12 +14,23 @@ MACRO_ALIASES = {
     "land": "wedge",
     "operatorname": "mathrm",
     "text": "mathrm",
+    "widehat": "hat",
     # TODO: expand this list
 }
 
 # their argument is left in the comparison tree.
 TRANSPARENT_MACROS = {
     "mathop",
+    "quad",
+    ":",
+    ";",
+    "s",
+    "!",
+    "medskip",
+    "bigskip",
+    "smallskip",
+    "break",
+    "big",
     # "mathit",
 }
 
