@@ -20,8 +20,14 @@ MACRO_ALIASES = {
 
 # their argument is left in the comparison tree.
 TRANSPARENT_MACROS = {
+    # "mathit",
+}
+
+# removed during canonization
+CONTENT_INDEPENDENT_MACROS = {
     "mathop",
     "quad",
+    "qquad",
     ":",
     ";",
     "s",
@@ -31,7 +37,9 @@ TRANSPARENT_MACROS = {
     "smallskip",
     "break",
     "big",
-    # "mathit",
+    "left",
+    "right",
+    "mid",
 }
 
 # they differ in display style but have the same structure.

@@ -14,6 +14,7 @@ from pylatexenc.latexwalker import (
 )
 
 from synthscript.metric.ast.macro_groups import (
+    CONTENT_INDEPENDENT_MACROS,
     FRACTION_MACROS,
     GROUP_SPLITTING_MACROS,
     MACRO_ALIASES,
@@ -443,8 +444,12 @@ class LatexCanonicalizer:
             return list(argument.children)
         return [argument]
 
-    def _macro(self, node: LatexMacroNode) -> CanonicalNode | list[CanonicalNode]:
+    def _macro(
+        self, node: LatexMacroNode
+    ) -> CanonicalNode | list[CanonicalNode] | None:
         """Apply aliases and special macro rules, preserving other macros."""
+        if node.macroname in CONTENT_INDEPENDENT_MACROS:
+            return None
         if node.macroname in STYLE_DECLARATIONS or node.macroname in (
             GROUP_SPLITTING_MACROS
         ):
