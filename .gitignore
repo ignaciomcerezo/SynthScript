@@ -3,6 +3,7 @@ data_out/
 data_in/
 .vscode/
 .idea/
+synthscript/metric/calibration/*
 __pycache__/
 synthscript.egg-info/
 tests/

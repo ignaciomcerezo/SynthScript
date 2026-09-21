@@ -28,24 +28,28 @@ class MetricParameters:
     character_weight: float = 1
     comment_weight: float = 1
     comment_character_weight: float = 1
-    math_weight: float = 1
+    math_weight: float = 0.9  # prev. 1
     symbol_weight: float = 1
     macro_weight: float = 1
-    group_weight: float = 0.5
+    group_weight: float = 0.4  # prev. 0.5
     environment_weight: float = 1
     arguments_weight: float = 0
-    fraction_weight: float = 2
-    sqrt_weight: float = 2
-    superscript_weight: float = 1
-    subscript_weight: float = 1
+    fraction_weight: float = 1.9  # prev. 2
+    sqrt_weight: float = 1.9  # prev 2
+    superscript_weight: float = 0.9  # prev 1.
+    subscript_weight: float = 0.9  # prev. 1
     subsup_weight: float = 2
-    style_weight: float = 1
+    style_weight: float = 0.9  # prev 1.
 
-    mass_factor: float = 1
+    mass_factor: float = 0.9  # prev 1.
 
-    subscript_superscript_cost: float = 1
+    subscript_superscript_cost: float = 1.1  # prev 1.
     script_subsup_cost: float = 0.5
     style_macro_cost: float = 1
+    macro_substitution_cost: float = 1
+    symbol_substitution_cost: float = 1
+    style_substitution_cost: float = 1.5
+    environment_substitution_cost: float = 1.5
 
     def weight(self, node: Node) -> float:
         """Return the importance of one node, excluding its children."""
@@ -141,7 +145,17 @@ class MetricParameters:
         if source.kind == target.kind and source.value == target.value:
             return 0.0
         if source.kind == target.kind:
-            return equal(source, target)
+            basic_costs = {
+                MetricNodeKind.MACRO: self.macro_substitution_cost,
+                MetricNodeKind.SYMBOL: self.symbol_substitution_cost,
+                MetricNodeKind.STYLE: self.style_substitution_cost,
+                MetricNodeKind.ENVIRONMENT: self.environment_substitution_cost,
+            }
+            if source.kind in basic_costs:
+                return basic_costs[source.kind]
+            if source.kind == MetricNodeKind.COMMENT:
+                return equal(source, target)
+            return deletion(source) + insertion(target)
 
         pair = frozenset((source.kind, target.kind))
         if pair == {MetricNodeKind.SUBSCRIPT, MetricNodeKind.SUPERSCRIPT}:
