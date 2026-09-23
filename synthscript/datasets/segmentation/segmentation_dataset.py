@@ -7,6 +7,7 @@ from shapely.geometry import Polygon
 from synthscript.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     ClusterParams,
+    RNGInput,
     orders_type,
 )
 from synthscript.datasets.image_transform_pack import ImageTransformPack
@@ -31,6 +32,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         annotations: Sequence[OCRPage],
         *,
         orders: orders_type,
+        rng: RNGInput = None,
         return_bounding_boxes: bool = True,
         cluster_transform_params: ClusterParams | None = None,
     ):
@@ -38,8 +40,9 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._transforms: OCRTransformPack = OCRTransformPack()
-        self._image_transforms = ImageTransformPack()
+        self.rng = rng
+        self._transforms: OCRTransformPack = OCRTransformPack(rng=self.rng)
+        self._image_transforms = ImageTransformPack(rng=self.rng)
         self._update_orders(orders)  # the three previous attributes are updated here
         self.return_bounding_boxes = return_bounding_boxes
 
@@ -48,6 +51,7 @@ class SegmentationDataset(BaseAnnotationDataset):
             if cluster_transform_params is not None
             else ClusterParams()
         )
+        self._transforms.avoid_intersections = self._cluster_params.avoid_intersections
 
     def __repr__(self):
         return (

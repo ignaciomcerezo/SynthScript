@@ -29,7 +29,7 @@ class ImageSeparationInterface(ExternalInterface):
             desc="Stroke/background separation...",
         ):
 
-            raw_image = cv2.imread(raw_image_path, cv2.IMREAD_GRAYSCALE)
+            raw_image = paths.load_image_grayscale_np(raw_image_path)
 
             if raw_image is None:
                 raise ValueError("Tried to separate nonexistent image.")

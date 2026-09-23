@@ -8,6 +8,7 @@ from typing import (
 from synthscript.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     ClusterParams,
+    RNGInput,
     orders_type,
 )
 from synthscript.datasets.image_transform_pack import ImageTransformPack
@@ -48,10 +49,10 @@ class OCRDataset(BaseAnnotationDataset):
         annotations: Sequence[OCRPage],
         *,
         orders: orders_type,
+        rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
         self._annotated_pages = annotations
-        # temp
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
@@ -63,10 +64,12 @@ class OCRDataset(BaseAnnotationDataset):
             if cluster_transform_params is not None
             else ClusterParams()
         )
+        self.rng = rng
         self._transforms: OCRTransformPack = OCRTransformPack(
-            avoid_intersections=self._cluster_params.avoid_intersections
+            avoid_intersections=self._cluster_params.avoid_intersections,
+            rng=self.rng,
         )
-        self._image_transforms = ImageTransformPack()
+        self._image_transforms = ImageTransformPack(rng=self.rng)
 
     def __repr__(self):
         return (

@@ -2,7 +2,6 @@ import functools
 import operator
 
 import numpy as np
-from numpy.random import rand
 from shapely.geometry import Polygon
 
 from synthscript.datasets.helpers.intersection_correction import (
@@ -19,7 +18,11 @@ Transform = LineTransform | ParagraphTransform | PageTransform
 
 
 class OCRTransformPack:
-    def __init__(self, avoid_intersections: bool = True):
+    def __init__(
+        self,
+        avoid_intersections: bool = True,
+        rng: np.random.Generator | int | None = None,
+    ):
         self._linewise: list[LineTransform] = []
         self._linewise_prob: list[float] = []
         self._intra: list[ParagraphTransform] = []
@@ -27,6 +30,19 @@ class OCRTransformPack:
         self._inter: list[PageTransform] = []
         self._inter_prob: list[float] = []
         self.avoid_intersections = avoid_intersections
+        self.rng = rng
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: np.random.Generator | int | None) -> None:
+        self._rng = (
+            value
+            if isinstance(value, np.random.Generator)
+            else np.random.default_rng(value)
+        )
 
     def _all_transforms(
         self,
@@ -65,16 +81,16 @@ class OCRTransformPack:
         else:
             raise ValueError(f"Unsupported OCR transform type {type(transform)}.")
 
-    def should_call(self, p):
-        return (p == 1) or ((p <= 1) and (rand() < p))
+    def should_call(self, probability: float) -> bool:
+        return probability == 1 or self._rng.random() < probability
 
     def __call__(
         self,
         paragraph_eq_list: list[tuple[list[np.ndarray], list[Polygon]]],
     ) -> tuple[list[np.ndarray], list[Polygon]]:
         """
-        Takes as input a list of 2-tuples (list of images, list of polygons) that represent the crop
-        and polygons of each paragraph
+        Takes a list of image-list/polygon-list pairs representing each paragraph's
+        crops and polygons.
         """
 
         for i in range(len(paragraph_eq_list)):

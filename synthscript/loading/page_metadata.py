@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 from typing import Annotated, Any
 
-import cv2
 import numpy as np
 from pydantic import BaseModel, model_validator
 
@@ -174,22 +173,13 @@ class PageSampleMetadata(BaseModel):
         return self._ids
 
     def load_raw(self) -> np.ndarray:
-        path = str(PathBundle.change_image_category_path(self.image_path, "raw"))
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            raise FileNotFoundError(f"Failed to load image from: {path}")
-        return img
+        path = PathBundle.change_image_category_path(self.image_path, "raw")
+        return PathBundle.load_image_grayscale_np(path)
 
     def load_stroke(self) -> np.ndarray:
-        path = str(PathBundle.change_image_category_path(self.image_path, "stroke"))
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            raise FileNotFoundError(f"Failed to load image from: {path}")
-        return img
+        path = PathBundle.change_image_category_path(self.image_path, "stroke")
+        return PathBundle.load_image_grayscale_np(path)
 
     def load_background(self) -> np.ndarray:
-        path = str(PathBundle.change_image_category_path(self.image_path, "background"))
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            raise FileNotFoundError(f"Failed to load image from: {path}")
-        return img
+        path = PathBundle.change_image_category_path(self.image_path, "background")
+        return PathBundle.load_image_grayscale_np(path)

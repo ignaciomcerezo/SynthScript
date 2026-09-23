@@ -9,25 +9,21 @@ description = "OCRDataset and OCRTransforms implermentation for fine-tuning an L
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=2.2.0",
-    "scipy>=1.14.0",
-    "python-levenshtein>=0.27.3",
-    "levenshtein>=0.27.3",
-    "fuzzywuzzy>=0.18.0",
     "label-studio-sdk>=2.0.19",
     "pydantic>=2.10.0,<2.12.4",
-    "pytest>=9.0.2",
     "python-dotenv>=1.2.2",
-    "rapidfuzz>=3.14.3",
     "requests>=2.32.5",
     "shapely>=2.1.2",
     "tqdm>=4.67.3",
-    "pillow>=12.1.1",
     "torch",
+    "opencv-python",
+    "pylatexenc>=2.11",
+    "zss>=1.2.0",
+    "levenshtein>=0.27.3",
 ]
 
 [project.optional-dependencies]
 train = [
-    "matplotlib>=3.10.8",
     "torch>=2.10.0",
     "ipywidgets>=8.1.8",
     "xformers>=0.0.35; sys_platform == 'linux'",
@@ -45,6 +41,7 @@ train = [
     "transformers>=5.5.0",
     "jiwer>=4.0.0",
     "peft",
+    "pillow>=12.1.1",
     "unsloth; sys_platform == 'linux'",
 ]
 
@@ -54,7 +51,9 @@ dev = [
     "ipykernel",
     "ipywidgets",
     "ruff",
+    "pytest>=9.0.2",
 ]
+
 
 
 [tool.setuptools.packages.find]

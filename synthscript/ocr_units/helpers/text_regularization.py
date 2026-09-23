@@ -134,42 +134,18 @@ french_latex_characters: set[str] = {
 
 MACRO_REPLACEMENTS: list[tuple[str, str]] = [
     (r"\nexists", r"\not \exists"),
-    (r"\smallskip", ""),
-    (r"\medskip", ""),
-    (r"\bigskip", ""),
-    (r"\break", ""),
     (r"\dots", "..."),
     (r"\ldots", "..."),
     (r"\colon", ":"),
-    (r"\etale", "étale"),
-    (r"\{\mathcal U\}", r"\mathcal U"),
-    (r"\{\mathcal{U}\}", r"\mathcal U"),
-    (r"\rightarrow", r"\to"),
-    (r"\widehat", r"\hat"),
-    (r"\left(", ")"),
-    (r"\right)", ")"),
-    (r"\left[", "["),
-    (r"\right]", "]"),
-    (r"\left\{", r"\{"),
-    (r"\right\{", r"\}"),
-    (r"\operatorname", r"\mathrm"),
-    (r"\mathop", r"\mathrm"),
-    ("O.P.S.", "OPS"),
-    ("O.P.S", "OPS"),
     (r"\varprojlim", r"\lim_{\leftarrow}"),
     (r"\varinjlim", r"\lim_{\to}"),
     ("—", "-"),
-    (r"\big", ""),
     (r"\/", r""),
     (r"\nobreak", ""),
-    ("N.B.", "NB"),
-    ("N.B", "NB"),
-    ("NB.", "NB"),
-    (" ...", "..."),
-    (r"\longleftarrow", r"\leftarrow"),
-    (r"\longrightarrow", r"\rightarrow"),
-    (r"\longleftrightarrow", r"\leftrightarrow"),
-    (r"\text{catégoriel U}", r"\mathcal{U}"),
+    (
+        r"\text{catégoriel U}",
+        r"\mathcal{U}",
+    ),  # TODO: solve this problem in the annotations (search and correct it)
     ("~", " "),
     ("á", "à"),
     ("ó", "ò"),
@@ -197,15 +173,6 @@ UNICODE_ARTIFACTS: list[tuple[str, str]] = [
 ]
 
 REPLACEMENTS_ENVS: list[tuple[tuple[str, str], tuple[str, str]]] = [
-    ((r"{\bf", "}"), ("", "")),
-    ((r"{ \bf", "}"), ("", "")),
-    ((r"{\sl", "}"), ("", "")),
-    ((r"{\it", "}"), ("", "")),
-    ((r"{ \it", "}"), ("", "")),
-    ((r"{\sl", "}"), ("", "")),
-    ((r"{ \sl", "}"), ("", "")),
-    ((r"{\cal", "}"), ("", "")),
-    ((r"{ \cal", "}"), ("", "")),
     ((r"\textit{", "}"), ("", "")),
     ((r"\textbf{", "}"), ("", "")),
     ((r"\textsl{", "}"), ("", "")),
@@ -222,13 +189,10 @@ for _ in range(10):
     bracketed_block = r"\{(?:" + text_nobracket_p + r"|" + bracketed_block + r")*\}"
 scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
 
-
+# TODO: the text should be corrected instead of having all of this.
 REGEX_MATH_MACROS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\\U\b"), r"\\mathcal U"),
     (re.compile(r"\\E\b"), r"\\mathcal E"),
-    (re.compile(r"\\mathcal\{ ([a-zA-Z]) *\}"), r"\\mathcal \1"),
-    (re.compile(r"\\mathfrak\{ *([a-zA-Z]) *\}"), r"\\mathfrak \1"),
-    (re.compile(r"\\mathbb\{ *([a-zA-Z]) *\}"), r"\\mathbb \1"),
     (
         re.compile(rf"\{{\\rm *({bracketed_block}|{text_nobracket_p}+)\}}"),
         r"\\mathrm{\1}",
@@ -241,18 +205,6 @@ REGEX_MATH_MACROS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\\frak"), r"\\mathfrak"),
     (re.compile(rf"\\textrm({bracketed_block})"), r"\\text\1"),
     (re.compile(rf"\\operatorname({bracketed_block})"), r"\\text\1"),
-]
-
-REGEX_PUNCTUATION_CLEANUP: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"-{2,}"), "-"),
-    (re.compile(r" :"), ":"),
-    (re.compile(r" +;"), ";"),
-    (re.compile(r"\( +"), r"("),
-    (re.compile(r" +\)"), r")"),
-    (re.compile(r"\[ +"), r"["),
-    (re.compile(r" +\]"), r"]"),
-    (re.compile(r" +!"), "!"),
-    (re.compile(r" +\?"), "?"),
 ]
 
 TASK_SPECIFIC_REGEX_REPLACEMENTS: dict[int, list[tuple[re.Pattern, str]]] = {
@@ -293,6 +245,7 @@ accent_latex_mispellings_regex = re.compile(
     re.VERBOSE,
 )
 
+# maybe this is okay to keep....
 MATH_ENVS_TO_DOLLAR = [
     (r"\begin{equation}", r"$"),
     (r"\end{equation}", r"$"),
@@ -456,8 +409,6 @@ def regularize_text(text: str, task_id: int | None = None) -> str:
     text = normalize_math_envs_to_dollar(text)
 
     text = apply_regex_replacements(text, REGEX_MATH_MACROS)
-
-    text = apply_regex_replacements(text, REGEX_PUNCTUATION_CLEANUP)
 
     if task_id is not None and task_id in TASK_SPECIFIC_REGEX_REPLACEMENTS:
         text = apply_regex_replacements(text, TASK_SPECIFIC_REGEX_REPLACEMENTS[task_id])

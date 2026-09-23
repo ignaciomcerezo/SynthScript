@@ -2,10 +2,10 @@ from collections.abc import Sequence
 from copy import deepcopy
 from typing import Literal
 
-from torch.utils.data import Dataset
-
 from synthscript.datasets.base_annotation_dataset import (
+    BaseAnnotationDataset,
     ClusterParams,
+    RNGInput,
     orders_type,
 )
 from synthscript.datasets.helpers.layout_generator import LayoutGenerator
@@ -13,7 +13,7 @@ from synthscript.datasets.transcription.ocrdataset import OCRDataset
 from synthscript.ocr_units import OCRPage
 
 
-class LayoutOCRDataset(Dataset):
+class LayoutOCRDataset(BaseAnnotationDataset):
     """
     Dataset variant intended to be used for OCR model training. It is built atop
     synthscript.datasets.OCRDataset, but implements more agressive layout modification:
@@ -27,11 +27,21 @@ class LayoutOCRDataset(Dataset):
         layout_generator: LayoutGenerator,
         *,
         orders: orders_type,
+        rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
         self._layout_generator = deepcopy(layout_generator)
         self._base_annotations = annotations
+        self.rng = rng
         self._set_underlying(orders=orders, params=cluster_transform_params)
+
+    @BaseAnnotationDataset.rng.setter
+    def rng(self, value: RNGInput) -> None:
+        BaseAnnotationDataset.rng.fset(self, value)
+        if hasattr(self, "_layout_generator"):
+            self._layout_generator.rng = self._rng
+        if hasattr(self, "_underlying_dataset"):
+            self._underlying_dataset.rng = self._rng
 
     def _set_underlying(
         self,
@@ -44,6 +54,7 @@ class LayoutOCRDataset(Dataset):
         self._underlying_dataset = OCRDataset(
             annotations=new_anns,
             orders=orders,
+            rng=self.rng,
             cluster_transform_params=params,
         )
 
@@ -54,6 +65,7 @@ class LayoutOCRDataset(Dataset):
         self._underlying_dataset = OCRDataset(
             annotations=new_anns,
             orders=self.orders,
+            rng=self.rng,
             cluster_transform_params=self.cluster_params,
         )
 
@@ -81,6 +93,7 @@ class LayoutOCRDataset(Dataset):
     @layout_generator.setter
     def layout_generator(self, value: LayoutGenerator):
         self._layout_generator = deepcopy(value)
+        self._layout_generator.rng = self.rng
         self.refresh_layouts()
 
     def __len__(self):

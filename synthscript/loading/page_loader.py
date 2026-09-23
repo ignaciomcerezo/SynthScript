@@ -5,7 +5,6 @@ from collections import defaultdict
 from collections.abc import Collection
 from pathlib import Path
 
-import cv2
 from tqdm.auto import tqdm
 
 from synthscript.loading.page_metadata import PageSampleMetadata
@@ -49,7 +48,7 @@ def load_pages(
     k = 0
     for metadata_filepath in tqdm(
         list(Path(paths.metadata_path).iterdir()),
-        desc="Loading A.P. data from disk...",
+        desc="Building OCRPage objects from disk...",
     ):
         if length is not None and k > length:
             break
@@ -78,18 +77,14 @@ def load_pages(
         ids = metadata.load_ids()
         image_path = metadata.image_path
 
-        # stroke and background separation is not certain at this point
-        stroke = cv2.imread(
-            paths.stroke_images_path / (image_path.stem + image_path.suffix),
-            cv2.IMREAD_GRAYSCALE,
-        )
-        background = cv2.imread(
-            paths.background_images_path / (image_path.stem + image_path.suffix),
-            cv2.IMREAD_GRAYSCALE,
-        )
+        stroke = paths.load_stroke_image(image_path.stem)
+        background = paths.load_background_image(image_path.stem)
+
         if (stroke is None) or (background is None):
             raise ValueError(
-                f"Stroke or background images could not be loaded for task {task_id}/page {page}."
+                f"Stroke or background images could not be loaded for task {task_id}/page {page}:\n"
+                f"background: {paths.get_background_image_path(image_path.stem)}\n"
+                f"stroke: {paths.get_stroke_image_path(image_path.stem)}"
             )
 
         taskid2annpage[task_id].append(
