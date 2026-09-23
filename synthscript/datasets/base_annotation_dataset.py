@@ -37,6 +37,7 @@ else:
 DatasetTransform = LineTransform | ParagraphTransform | PageTransform | ImageTransform
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
+RNGInput = np.random.Generator | int | None
 
 T = TypeVar("T", bound="BaseAnnotationDataset")
 
@@ -63,6 +64,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         default_factory=lambda: ImageTransformPack()
     )
     _cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
+    _rng: np.random.Generator
 
     @abstractmethod
     def __init__(
@@ -70,9 +72,31 @@ class BaseAnnotationDataset(Dataset, ABC):
         pages: Sequence[OCRPage],
         *,
         orders: orders_type,
+        rng: RNGInput = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
+
+    @staticmethod
+    def _make_rng(value: RNGInput = None) -> np.random.Generator:
+        if isinstance(value, np.random.Generator):
+            return value
+        return np.random.default_rng(value)
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: RNGInput) -> None:
+        self._rng = self._make_rng(value)
+
+        # Packs may already exist when callers replace a dataset's RNG. Keep
+        # every source of transform-selection randomness on the same stream.
+        if isinstance(getattr(self, "_transforms", None), OCRTransformPack):
+            self._transforms.rng = self._rng
+        if isinstance(getattr(self, "_image_transforms", None), ImageTransformPack):
+            self._image_transforms.rng = self._rng
 
     @property
     def pages(self) -> list[str | None]:
@@ -349,9 +373,10 @@ class BaseAnnotationDataset(Dataset, ABC):
                 raise ValueError(f"Unsupported transform type {type(transform)}")
         transform: DatasetTransform | None
         self._transforms = OCRTransformPack(
-            avoid_intersections=self.cluster_params.avoid_intersections
+            avoid_intersections=self.cluster_params.avoid_intersections,
+            rng=self.rng,
         )
-        self._image_transforms = ImageTransformPack()
+        self._image_transforms = ImageTransformPack(rng=self.rng)
         for transform, probability in transform_probability_pairs:
             if probability != 0:
                 self.add_transform(transform, probability)
@@ -501,8 +526,8 @@ class BaseAnnotationDataset(Dataset, ABC):
             test += test_i
 
         return (
-            cls(train, orders=orders),
-            cls(test, orders=orders),
+            cls(train, orders=orders, rng=np.random.default_rng()),
+            cls(test, orders=orders, rng=np.random.default_rng()),
         )
 
     @abstractmethod

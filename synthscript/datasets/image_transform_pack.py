@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.random import rand
 
 from synthscript.transforms import (
     BackgroundTransform,
@@ -12,13 +11,26 @@ from synthscript.transforms.transforms import ImageTransform
 class ImageTransformPack:
     """Groups transforms by the image-composition stage they operate on."""
 
-    def __init__(self):
+    def __init__(self, rng: np.random.Generator | int | None = None):
         self._stroke: list[StrokeTransform] = []
         self._stroke_prob: list[float] = []
         self._background: list[BackgroundTransform] = []
         self._background_prob: list[float] = []
         self._global_image: list[GlobalImageTransform] = []
         self._global_image_prob: list[float] = []
+        self.rng = rng
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: np.random.Generator | int | None) -> None:
+        self._rng = (
+            value
+            if isinstance(value, np.random.Generator)
+            else np.random.default_rng(value)
+        )
 
     @property
     def is_identity(self) -> bool:
@@ -28,9 +40,8 @@ class ImageTransformPack:
             + sum(self._global_image_prob)
         ) == 0
 
-    @staticmethod
-    def _should_call(probability: float) -> bool:
-        return probability == 1 or rand() < probability
+    def _should_call(self, probability: float) -> bool:
+        return probability == 1 or self._rng.random() < probability
 
     def add_transform(self, transform: ImageTransform, probability: float = 1) -> None:
         if not 0 <= probability <= 1:

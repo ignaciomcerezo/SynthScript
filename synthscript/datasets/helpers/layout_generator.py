@@ -24,13 +24,26 @@ class LayoutGenerator:
     from the returned crops and polygons.
     """
 
-    def __init__(self, avoid_line_intersections: bool = True):
+    def __init__(
+        self,
+        avoid_line_intersections: bool = True,
+        rng: np.random.Generator | int | None = None,
+    ):
         # Retain the old argument name for compatibility. OCRTransformPack also
         # handles intersections between paragraphs.
         self._avoid_intersections = avoid_line_intersections
         self._transforms = OCRTransformPack(
-            avoid_intersections=avoid_line_intersections
+            avoid_intersections=avoid_line_intersections,
+            rng=rng,
         )
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._transforms.rng
+
+    @rng.setter
+    def rng(self, value: np.random.Generator | int | None) -> None:
+        self._transforms.rng = value
 
     @property
     def transforms(self) -> OCRTransformPack | None:
@@ -63,7 +76,8 @@ class LayoutGenerator:
                 )
 
         self._transforms = OCRTransformPack(
-            avoid_intersections=self._avoid_intersections
+            avoid_intersections=self._avoid_intersections,
+            rng=self.rng,
         )
         for transform, probability in transform_probability_pairs:
             if probability != 0:

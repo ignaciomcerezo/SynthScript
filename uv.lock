@@ -935,15 +935,6 @@ http = [
 ]
 
 [[package]]
-name = "fuzzywuzzy"
-version = "0.18.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/11/4b/0a002eea91be6048a2b5d53c5f1b4dafd57ba2e36eea961d05086d7c28ce/fuzzywuzzy-0.18.0.tar.gz", hash = "sha256:45016e92264780e58972dca1b3d939ac864b78437422beecebb3095f8efd00e8", size = 28888, upload-time = "2020-02-13T21:06:27.054Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/ff/74f23998ad2f93b945c0309f825be92e04e0348e062026998b5eefef4c33/fuzzywuzzy-0.18.0-py2.py3-none-any.whl", hash = "sha256:928244b28db720d1e0ee7587acf660ea49d7e4c632569cad4f1cd7e68a5f0993", size = 18272, upload-time = "2020-02-13T21:06:25.209Z" },
-]
-
-[[package]]
 name = "genson"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3143,18 +3134,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-levenshtein"
-version = "0.27.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "levenshtein" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/b4/36eda4188dd19d3cb53d8a8749d7520bd23dfe1c1f44e56ea9dcd0232274/python_levenshtein-0.27.3.tar.gz", hash = "sha256:27dc2d65aeb62a7d6852388f197073296370779286c0860b087357f3b8129a62", size = 12446, upload-time = "2025-11-01T12:54:59.712Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/5b/26e3cca2589252ceabf964ba81514e6f48556553c9c2766e1a0fdceec696/python_levenshtein-0.27.3-py3-none-any.whl", hash = "sha256:5d6168a8e8befb25abf04d2952368a446722be10e8ced218d0dc4fd3703a43a1", size = 9504, upload-time = "2025-11-01T12:54:58.933Z" },
-]
-
-[[package]]
 name = "pytokens"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3994,15 +3973,18 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "label-studio-sdk" },
+    { name = "levenshtein" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "opencv-python" },
     { name = "pydantic" },
+    { name = "pylatexenc" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "shapely" },
     { name = "torch" },
     { name = "tqdm" },
+    { name = "zss" },
 ]
 
 [package.optional-dependencies]
@@ -4012,14 +3994,6 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
-]
-metric = [
-    { name = "fuzzywuzzy" },
-    { name = "levenshtein" },
-    { name = "pylatexenc" },
-    { name = "python-levenshtein" },
-    { name = "rapidfuzz" },
-    { name = "zss" },
 ]
 train = [
     { name = "accelerate" },
@@ -4059,7 +4033,6 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.13.0" },
     { name = "bitsandbytes", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=0.49.2" },
     { name = "cut-cross-entropy", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=25.1.1" },
-    { name = "fuzzywuzzy", marker = "extra == 'metric'", specifier = ">=0.18.0" },
     { name = "hf-transfer", marker = "extra == 'train'", specifier = ">=0.1.9" },
     { name = "huggingface-hub", marker = "extra == 'train'", specifier = ">=1.11.0" },
     { name = "ipykernel", marker = "extra == 'dev'" },
@@ -4067,18 +4040,16 @@ requires-dist = [
     { name = "ipywidgets", marker = "extra == 'train'", specifier = ">=8.1.8" },
     { name = "jiwer", marker = "extra == 'train'", specifier = ">=4.0.0" },
     { name = "label-studio-sdk", specifier = ">=2.0.19" },
-    { name = "levenshtein", marker = "extra == 'metric'", specifier = ">=0.27.3" },
+    { name = "levenshtein", specifier = ">=0.27.3" },
     { name = "numpy", specifier = ">=2.2.0" },
     { name = "opencv-python" },
     { name = "peft", marker = "extra == 'train'", git = "https://github.com/huggingface/peft.git" },
     { name = "pillow", marker = "extra == 'train'", specifier = ">=12.1.1" },
     { name = "protobuf", marker = "extra == 'train'", specifier = ">=7.34.1" },
     { name = "pydantic", specifier = ">=2.10.0,<2.12.4" },
-    { name = "pylatexenc", marker = "extra == 'metric'", specifier = ">=2.11" },
+    { name = "pylatexenc", specifier = ">=2.11" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "python-levenshtein", marker = "extra == 'metric'", specifier = ">=0.27.3" },
-    { name = "rapidfuzz", marker = "extra == 'metric'", specifier = ">=3.14.3" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "sentencepiece", marker = "extra == 'train'", specifier = ">=0.2.1" },
@@ -4095,9 +4066,9 @@ requires-dist = [
     { name = "unsloth", marker = "sys_platform == 'linux' and extra == 'train'", git = "https://github.com/unslothai/unsloth.git" },
     { name = "unsloth-zoo", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=2026.4.8" },
     { name = "xformers", marker = "sys_platform == 'linux' and extra == 'train'", specifier = ">=0.0.35" },
-    { name = "zss", marker = "extra == 'metric'", specifier = ">=1.2.0" },
+    { name = "zss", specifier = ">=1.2.0" },
 ]
-provides-extras = ["train", "metric", "dev"]
+provides-extras = ["train", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
