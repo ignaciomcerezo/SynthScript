@@ -4,9 +4,28 @@ from typing import Any, Generic, Literal, TypeVar
 import numpy as np
 
 Vector2D = np.ndarray[tuple[Literal[2], Any]]
+RNGInput = np.random.Generator | int | None
 
 
-class Parameter:
+def _make_rng(value: RNGInput) -> np.random.Generator:
+    if isinstance(value, np.random.Generator):
+        return value
+    return np.random.default_rng(value)
+
+
+class RandomizedParameter:
+    __slots__ = ("_rng",)
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: RNGInput) -> None:
+        self._rng = _make_rng(value)
+
+
+class Parameter(RandomizedParameter):
     """
     Represents a probability distribution or a single value.
     Useful for transformation configuration.
@@ -14,16 +33,35 @@ class Parameter:
 
     __slots__ = ("_bounds", "_value")
 
-    def __init__(self, value: "Parameter | float | Callable[[], float]"):
+    def __init__(
+        self,
+        value: "Parameter | float | Callable[[], float]",
+        *,
+        rng: RNGInput = None,
+    ):
         if isinstance(value, Parameter):
             self._value = getattr(value, "_value", value)
             self._bounds = value._bounds
+            if rng is None:
+                rng = value.rng
         elif isinstance(value, (float, int)):
             self._value = value
             self._bounds = (value, value)
         else:
             self._value = value
             self._bounds = (float("-inf"), float("inf"))
+        self.rng = rng
+
+    @property
+    def rng(self) -> np.random.Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: RNGInput) -> None:
+        self._rng = _make_rng(value)
+        nested = getattr(self, "_value", None)
+        if isinstance(nested, Parameter):
+            nested.rng = self._rng
 
     def __call__(self) -> float:
         if isinstance(self._value, (float, int)):
@@ -51,13 +89,20 @@ class Parameter:
 class NormalDistribution(Parameter):
     __slots__ = ("_mean", "_sigma")
 
-    def __init__(self, mean: float = 0, sigma: float = 1):
+    def __init__(
+        self,
+        mean: float = 0,
+        sigma: float = 1,
+        *,
+        rng: RNGInput = None,
+    ):
         self._mean = mean
         self._sigma = sigma
         self._bounds = (float("-inf"), float("inf"))
+        self.rng = rng
 
     def __call__(self) -> float:
-        return float(np.random.normal(self._mean, self._sigma))
+        return float(self._rng.normal(self._mean, self._sigma))
 
     def __repr__(self):
         return f"<N({self._mean},{self._sigma})>"
@@ -72,14 +117,17 @@ class TrimmedNormalDistribution(Parameter):
         clip_high: float = 2,
         mean: float = 0,
         sigma: float = 1,
+        *,
+        rng: RNGInput = None,
     ):
         self._mean = mean
         self._sigma = sigma
         self._bounds = (clip_low, clip_high)
+        self.rng = rng
 
     def __call__(self) -> float:
         m, M = self._bounds
-        return min(max(m, float(np.random.normal(self._mean, self._sigma))), M)
+        return min(max(m, float(self._rng.normal(self._mean, self._sigma))), M)
 
     def __repr__(self):
         return f"<TrimN({self._mean},{self._sigma})>"
@@ -88,13 +136,14 @@ class TrimmedNormalDistribution(Parameter):
 class UniformDistribution(Parameter):
     __slots__ = ("_max", "_min")
 
-    def __init__(self, low: float, high: float):
+    def __init__(self, low: float, high: float, *, rng: RNGInput = None):
         self._min = low
         self._max = high
         self._bounds = (low, high)
+        self.rng = rng
 
     def __call__(self) -> float:
-        return float(np.random.uniform(self._min, self._max))
+        return float(self._rng.uniform(self._min, self._max))
 
     def __repr__(self):
         return f"<U({self._min},{self._max})>"
@@ -103,8 +152,14 @@ class UniformDistribution(Parameter):
 T = TypeVar("T")
 
 
-class DiscreteDistribution(Generic[T]):
-    def __init__(self, values: Sequence[T], probabilities: Sequence[float] | None):
+class DiscreteDistribution(RandomizedParameter, Generic[T]):
+    def __init__(
+        self,
+        values: Sequence[T],
+        probabilities: Sequence[float] | None,
+        *,
+        rng: RNGInput = None,
+    ):
         if probabilities is not None:
             if len(probabilities) != len(values):
                 raise ValueError(
@@ -117,8 +172,9 @@ class DiscreteDistribution(Generic[T]):
             [1 / len(values)] * len(values) if probabilities is None else probabilities
         )
         self._bounds = None
+        self.rng = rng
 
     def __call__(self) -> T:
-        return np.random.choice(
+        return self._rng.choice(
             self._values, p=self._probabilities
         )  # ty: ignore[no-matching-overload]

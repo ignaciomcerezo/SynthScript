@@ -43,6 +43,8 @@ class OCRTransformPack:
             if isinstance(value, np.random.Generator)
             else np.random.default_rng(value)
         )
+        for transform in self._all_transforms():
+            transform.rng = self._rng
 
     def _all_transforms(
         self,
@@ -69,6 +71,7 @@ class OCRTransformPack:
         """Append a supported OCR layout transform."""
         if (probability > 1) or (probability < 0):
             raise ValueError("probability must be between 0 and 1")
+        transform.rng = self._rng
         if isinstance(transform, LineTransform):
             self._linewise.append(transform)
             self._linewise_prob.append(probability)
@@ -104,6 +107,7 @@ class OCRTransformPack:
                     self._linewise, self._linewise_prob, strict=True
                 ):
                     if self.should_call(p):
+                        linewise_transform.rng = self._rng
                         cur_image, cur_polygon = linewise_transform(
                             cur_image, cur_polygon
                         )
@@ -117,6 +121,7 @@ class OCRTransformPack:
                 self._intra, self._intra_prob, strict=True
             ):
                 if self.should_call(p):
+                    intraparagraph_transform.rng = self._rng
                     current_paragraph = intraparagraph_transform(current_paragraph)
 
             paragraph_eq_list[i] = current_paragraph
@@ -124,6 +129,7 @@ class OCRTransformPack:
         # Process interparagraph transforms
         for interparagraph, p in zip(self._inter, self._inter_prob, strict=True):
             if self.should_call(p):
+                interparagraph.rng = self._rng
                 paragraph_eq_list = list(
                     zip(*interparagraph(paragraph_eq_list), strict=True)
                 )

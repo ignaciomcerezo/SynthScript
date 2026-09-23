@@ -57,7 +57,7 @@ class ReadingDirectionClearance(ParagraphTransform):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
 
             if k:
-                perturbation = 1 if not self.noise else np.random.rand()
+                perturbation = 1 if not self.noise else self.rng.random()
                 displacement_norm = -Delta / 2 + delta_i * (k + perturbation - 2)
             else:
                 displacement_norm = -Delta / 2

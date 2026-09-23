@@ -14,7 +14,7 @@ from synthscript.metric.ast.node import CanonicalNode
 
 class LatexParser:
     """
-    Parse latex code into an AST.
+    Parse latex code into a canonical AST.
     """
 
     def __init__(self, config: CanonicalizationConfig | None = None) -> None:

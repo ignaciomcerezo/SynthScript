@@ -20,8 +20,8 @@ class InkFade(StrokeTransform):
     ):
         self.strength = Parameter(strength)
         self.direction = (
-            Parameter(direction)
-            if isinstance(direction, Parameter)
+            direction
+            if isinstance(direction, DiscreteDistribution)
             else DiscreteDistribution([direction], [1])
         )
 

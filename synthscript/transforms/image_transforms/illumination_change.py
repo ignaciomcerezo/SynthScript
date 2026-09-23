@@ -23,7 +23,7 @@ class IlluminationChange(GlobalImageTransform):
 
         grid_height = max(2, int(np.ceil(relative_scale)) + 1)
         grid_width = max(2, int(np.ceil(relative_scale)) + 1)
-        low_frequency_noise = np.random.uniform(
+        low_frequency_noise = self.rng.uniform(
             -1.0, 1.0, (grid_height, grid_width)
         ).astype(np.float32)
         illumination = cv2.resize(

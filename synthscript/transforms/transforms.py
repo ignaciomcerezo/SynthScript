@@ -9,6 +9,7 @@ import shapely
 from shapely.geometry import Polygon
 
 from synthscript.ocr_units import OCRLine, OCRParagraph
+from synthscript.shared.parameters import RandomizedParameter, RNGInput
 
 line_group_equivalent_type = (
     OCRParagraph
@@ -18,7 +19,26 @@ line_group_equivalent_type = (
 )
 
 
-class OCRTransform(ABC):
+class _RandomizedTransform:
+    @property
+    def rng(self) -> np.random.Generator:
+        if not hasattr(self, "_rng"):
+            self._rng = np.random.default_rng()
+        return self._rng
+
+    @rng.setter
+    def rng(self, value: RNGInput) -> None:
+        self._rng = (
+            value
+            if isinstance(value, np.random.Generator)
+            else np.random.default_rng(value)
+        )
+        for attribute in vars(self).values():
+            if isinstance(attribute, (RandomizedParameter, _RandomizedTransform)):
+                attribute.rng = self._rng
+
+
+class OCRTransform(_RandomizedTransform, ABC):
     may_cause_intersections: bool
 
     @abstractmethod
@@ -211,7 +231,7 @@ class PageTransform(OCRTransform):
         return image_groups, polygon_groups
 
 
-class ImageTransform(ABC):
+class ImageTransform(_RandomizedTransform, ABC):
     may_cause_intersections = False
 
     @abstractmethod

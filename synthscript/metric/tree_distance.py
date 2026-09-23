@@ -5,9 +5,9 @@ from collections.abc import Callable
 from zss import distance as zss_distance
 
 from synthscript.metric.ast.node import CanonicalNode, MetricNode, to_metric_tree
-from synthscript.metric.costs.parameters import (
-    DEFAULT_METRIC_PARAMETERS,
-    MetricParameters,
+from synthscript.metric.node_metrics import (
+    DEFAULT_CONFIGURED_METRIC,
+    ConfiguredNodeMetrics,
 )
 
 
@@ -15,7 +15,7 @@ def tree_edit_distance(
     source: CanonicalNode | MetricNode,
     target: CanonicalNode | MetricNode,
     *,
-    parameters: MetricParameters | None = None,
+    parameters: ConfiguredNodeMetrics | None = None,
     insertion_cost: Callable[[MetricNode], float] | None = None,
     deletion_cost: Callable[[MetricNode], float] | None = None,
     substitution_cost: Callable[[MetricNode, MetricNode], float] | None = None,
@@ -29,10 +29,10 @@ def tree_edit_distance(
     The underlying dynamic program is the Zhang-Shasha ordered tree edit
     distance algorithm.
     """
-    metric_parameters = parameters or DEFAULT_METRIC_PARAMETERS
-    insertion = insertion_cost or metric_parameters.mass_cost
-    deletion = deletion_cost or metric_parameters.mass_cost
-    substitution = substitution_cost or metric_parameters.substitution_cost
+    metric = parameters or DEFAULT_CONFIGURED_METRIC
+    insertion = insertion_cost or metric.mass_cost
+    deletion = deletion_cost or metric.mass_cost
+    substitution = substitution_cost or metric.substitution_cost
 
     metric_source = (
         to_metric_tree(source) if isinstance(source, CanonicalNode) else source

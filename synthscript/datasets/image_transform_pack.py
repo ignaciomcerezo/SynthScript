@@ -31,6 +31,8 @@ class ImageTransformPack:
             if isinstance(value, np.random.Generator)
             else np.random.default_rng(value)
         )
+        for transform in self._stroke + self._background + self._global_image:
+            transform.rng = self._rng
 
     @property
     def is_identity(self) -> bool:
@@ -47,6 +49,7 @@ class ImageTransformPack:
         if not 0 <= probability <= 1:
             raise ValueError("probability must be between 0 and 1")
 
+        transform.rng = self._rng
         if isinstance(transform, StrokeTransform):
             self._stroke.append(transform)
             self._stroke_prob.append(probability)
@@ -65,6 +68,7 @@ class ImageTransformPack:
                 self._stroke, self._stroke_prob, strict=True
             ):
                 if self._should_call(probability):
+                    transform.rng = self._rng
                     stroke = transform(stroke)
             strokes[index] = stroke
         return strokes
@@ -74,6 +78,7 @@ class ImageTransformPack:
             self._background, self._background_prob, strict=True
         ):
             if self._should_call(probability):
+                transform.rng = self._rng
                 background = transform(background)
         return background
 
@@ -82,5 +87,6 @@ class ImageTransformPack:
             self._global_image, self._global_image_prob, strict=True
         ):
             if self._should_call(probability):
+                transform.rng = self._rng
                 image = transform(image)
         return image

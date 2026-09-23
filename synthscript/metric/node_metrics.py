@@ -18,9 +18,9 @@ BinaryCost = Callable[[MetricNode, MetricNode], float]
 
 
 @dataclass(frozen=True, slots=True)
-class MetricParameters:
+class ConfiguredNodeMetrics:
     """
-    Weights and edit costs used by the metric, and the metric implementations
+    Weights and edit costs used by the metric and the metric implementations
     themselves
     """
 
@@ -204,4 +204,4 @@ class MetricParameters:
         return deletion(source) + insertion(target)
 
 
-DEFAULT_METRIC_PARAMETERS = MetricParameters()
+DEFAULT_CONFIGURED_METRIC = ConfiguredNodeMetrics()
