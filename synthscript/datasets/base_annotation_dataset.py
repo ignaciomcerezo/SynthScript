@@ -417,8 +417,6 @@ class BaseAnnotationDataset(Dataset, ABC):
         n_trials: int = 1000,
     ) -> tuple[list[OCRPage], list[OCRPage]]:
 
-        print(f"Performing Monte Carlo page split with {n_trials} trials")
-
         weights = [
             (
                 i,
@@ -477,6 +475,9 @@ class BaseAnnotationDataset(Dataset, ABC):
         p: float,
         orders: orders_type,
         orders_to_split_with: orders_type | None = None,
+        rng_a: np.random.Generator | int | None = None,
+        rng_b: np.random.Generator | int | None = None,
+        n_trials: int | None = None,
     ) -> tuple[T, T]:
         """
         Generates two datasets (paradigmatically train and test) from
@@ -520,14 +521,15 @@ class BaseAnnotationDataset(Dataset, ABC):
                 orders=(
                     orders if orders_to_split_with is None else orders_to_split_with
                 ),
+                n_trials=1000 if n_trials is None else n_trials,
             )
 
             train += train_i
             test += test_i
 
         return (
-            cls(train, orders=orders, rng=np.random.default_rng()),
-            cls(test, orders=orders, rng=np.random.default_rng()),
+            cls(train, orders=orders, rng=rng_b),
+            cls(test, orders=orders, rng=rng_b),
         )
 
     @abstractmethod
