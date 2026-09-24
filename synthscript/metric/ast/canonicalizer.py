@@ -381,13 +381,17 @@ class LatexCanonicalizer:
         return [self._argument(arg) for arg in nodeargd.argnlist if arg is not None]
 
     def _math(self, node: LatexMathNode) -> CanonicalNode:
-        """Convert math content and optionally retain its delimiter spelling."""
+        """Remove redundant math groups"""
+        children = [
+            self._unwrap_group(child) for child in self._visit_many(node.nodelist)
+        ]
+        children = self._merge_text_nodes(children)
         return CanonicalNode(
             kind=NodeKind.MATH,
             value=(
                 None if self.config.normalize_math_delimiters else repr(node.delimiters)
             ),
-            children=tuple(self._visit_many(node.nodelist)),
+            children=tuple(children),
             span=self._span(node),
         )
 
@@ -425,7 +429,10 @@ class LatexCanonicalizer:
         radicand = self._unwrap_group(arguments[-1])
         children = (radicand,)
         if len(arguments) == 2:
-            children += (self._unwrap_group(arguments[0], allow_optional=True),)
+            index = self._unwrap_group(arguments[0], allow_optional=True)
+            # only stores the optional argument if it is not a 2
+            if index != CanonicalNode(NodeKind.TEXT, value="2"):
+                children += (index,)
         return CanonicalNode(
             kind=NodeKind.SQRT, children=children, span=self._span(node)
         )
