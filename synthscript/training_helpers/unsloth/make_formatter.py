@@ -1,9 +1,10 @@
+from collections.abc import Callable
 from typing import Literal
 
 from PIL import Image
 
 
-def prepare_unsloth_formatter(instruction_text: str):
+def prepare_unsloth_formatter(instruction_text: str, homogenizer: Callable[[str], str]):
     def formatter(sample: dict[Literal["image", "text"], Image.Image | str]):
         return {
             "messages": [
@@ -27,7 +28,9 @@ def prepare_unsloth_formatter(instruction_text: str):
                     "content": [
                         {
                             "type": "text",
-                            "text": sample["text"],
+                            "text": homogenizer(
+                                sample["text"]  # ty: ignore[invalid-argument-type]
+                            ),
                         }
                     ],
                 },
