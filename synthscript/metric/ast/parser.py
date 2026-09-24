@@ -8,6 +8,7 @@ from synthscript.metric.ast.canonicalizer import (
 from synthscript.metric.ast.macro_groups import (
     FRACTION_MACROS,
     GROUP_SPLITTING_MACROS,
+    SINGLE_ARGUMENT_MACROS,
 )
 from synthscript.metric.ast.node import CanonicalNode
 
@@ -23,10 +24,13 @@ class LatexParser:
         self._latex_context.add_context_category(
             "synthscript",
             macros=[
-                MacroSpec(name, "{{")
-                for name in sorted(
-                    FRACTION_MACROS | set(GROUP_SPLITTING_MACROS.values())
-                )
+                *[MacroSpec(name, "{") for name in sorted(SINGLE_ARGUMENT_MACROS)],
+                *[
+                    MacroSpec(name, "{{")
+                    for name in sorted(
+                        FRACTION_MACROS | set(GROUP_SPLITTING_MACROS.values())
+                    )
+                ],
             ],
             specials=[
                 SpecialsSpec("^", args_parser=MacroStandardArgsParser("{")),

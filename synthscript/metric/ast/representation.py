@@ -78,7 +78,7 @@ def _sequence_latex_flatten(
         part = flatten_latex(child)
         if (
             previous is not None
-            and previous.kind == NodeKind.MACRO
+            and previous.kind in {NodeKind.MACRO, NodeKind.STYLE}
             and not previous.children
             and previous.value
             and previous.value[-1].isalpha()

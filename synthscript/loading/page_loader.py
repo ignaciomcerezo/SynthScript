@@ -13,8 +13,8 @@ from synthscript.shared.path_bundle import PathBundle
 
 
 def load_pages(
-    paths: PathBundle,
     *,
+    paths: PathBundle | None = None,
     pages: Collection[str | int] | None = None,
     tasks: Collection[int] | None = None,
     combine_same_page_annotations: bool = True,
@@ -26,6 +26,7 @@ def load_pages(
     images, transcriptions, polygons, ids and rotations and creates AnnotatedPage
     instances.
     """
+    paths = PathBundle() if paths is None else paths
 
     tasks: set[int] | None = (
         set([task for task in tasks]) if isinstance(tasks, Collection) else None

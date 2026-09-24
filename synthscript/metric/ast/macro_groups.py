@@ -24,6 +24,11 @@ MACRO_ALIASES = {
     # TODO: expand this list
 }
 
+# custom one-argument commands from our corpus
+SINGLE_ARGUMENT_MACROS = {
+    "operatorname",
+}
+
 # their argument is left in the comparison tree.
 TRANSPARENT_MACROS = {
     # "mathit",
@@ -34,6 +39,7 @@ CONTENT_INDEPENDENT_MACROS = {
     "mathop",
     "quad",
     "qquad",
+    ",",
     ":",
     ";",
     "s",

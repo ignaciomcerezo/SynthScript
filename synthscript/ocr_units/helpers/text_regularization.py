@@ -199,12 +199,6 @@ REGEX_MATH_MACROS: list[tuple[re.Pattern, str]] = [
     ),
     (re.compile(r"\\tag\{\d*\}"), ""),
     (re.compile(r"\\not *="), r"\neq"),
-    (re.compile(r"\{\\cal *"), r"\\mathcal{"),
-    (re.compile(r"\\cal"), r"\\mathcal"),
-    (re.compile(r"\{\\frak *"), r"\\mathfrak{"),
-    (re.compile(r"\\frak"), r"\\mathfrak"),
-    (re.compile(rf"\\textrm({bracketed_block})"), r"\\text\1"),
-    (re.compile(rf"\\operatorname({bracketed_block})"), r"\\text\1"),
 ]
 
 TASK_SPECIFIC_REGEX_REPLACEMENTS: dict[int, list[tuple[re.Pattern, str]]] = {
