@@ -77,22 +77,14 @@ class BaseAnnotationDataset(Dataset, ABC):
     ) -> None:
         raise NotImplementedError
 
-    @staticmethod
-    def _make_rng(value: RNGInput = None) -> np.random.Generator:
-        if isinstance(value, np.random.Generator):
-            return value
-        return np.random.default_rng(value)
-
     @property
     def rng(self) -> np.random.Generator:
         return self._rng
 
     @rng.setter
     def rng(self, value: RNGInput) -> None:
-        self._rng = self._make_rng(value)
+        self._rng = self._validate_rng(value)
 
-        # Packs may already exist when callers replace a dataset's RNG. Keep
-        # every source of transform-selection randomness on the same stream.
         if isinstance(getattr(self, "_transforms", None), OCRTransformPack):
             self._transforms.rng = self._rng
         if isinstance(getattr(self, "_image_transforms", None), ImageTransformPack):
@@ -412,8 +404,9 @@ class BaseAnnotationDataset(Dataset, ABC):
     @staticmethod
     def montecarlo_ann_split(
         annotations: list[OCRPage],
-        p=0.95,
-        orders: Collection[int | Literal["paragraph", "page"]] = [1],
+        p,
+        orders: Collection[int | Literal["paragraph", "page"]],
+        rng: np.random.Generator,
         n_trials: int = 1000,
     ) -> tuple[list[OCRPage], list[OCRPage]]:
 
@@ -442,7 +435,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         best_pages: set[int] = set()
 
         for _ in range(n_trials):
-            candidate_pages = {i for i, _ in weights if np.random.rand() < p}
+            candidate_pages = {i for i, _ in weights if rng.uniform(0, 1) < p}
 
             candidate_samples = sum(
                 weight for i, weight in weights if i in candidate_pages
@@ -467,6 +460,20 @@ class BaseAnnotationDataset(Dataset, ABC):
         ]
 
         return train_annotations, test_annotations
+
+    @staticmethod
+    def _validate_rng(
+        rng: np.random.Generator | int | None, variable_name: str = "RNG"
+    ) -> np.random.Generator:
+
+        if isinstance(rng, np.random.Generator):
+            return rng
+        elif isinstance(rng, int):
+            return np.random.default_rng(rng)
+        elif rng is None:
+            return np.random.default_rng()
+        else:
+            raise ValueError(f"rng_a must be a Genertor, an int or None, got {rng}")
 
     @classmethod
     def from_split(
@@ -514,6 +521,8 @@ class BaseAnnotationDataset(Dataset, ABC):
         train = []
         test = []
 
+        rng_a = cls._validate_rng(rng_a)  # used in the stochastic monte carlo split
+
         for annotations in groups_of_annotations:
             train_i, test_i = cls.montecarlo_ann_split(
                 annotations,
@@ -521,6 +530,7 @@ class BaseAnnotationDataset(Dataset, ABC):
                 orders=(
                     orders if orders_to_split_with is None else orders_to_split_with
                 ),
+                rng=rng_a,
                 n_trials=1000 if n_trials is None else n_trials,
             )
 
