@@ -1,13 +1,11 @@
 from synthscript.loading.external_interfaces.external_interface import ExternalInterface
-from synthscript.loading.page_loader import load_pages
-from synthscript.ocr_units.ocr_page import OCRPage
 from synthscript.shared.path_bundle import PathBundle
 
 
 def setup(
     external_interfaces: list[ExternalInterface],
     paths: PathBundle | None = None,
-) -> list[OCRPage]:
+):
     """
     Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
     """
@@ -40,5 +38,3 @@ def setup(
 
     for ext_int_1 in external_interfaces:
         ext_int_1.setup(paths)
-
-    return load_pages(paths)
