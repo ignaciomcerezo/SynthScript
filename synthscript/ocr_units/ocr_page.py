@@ -314,8 +314,8 @@ class OCRPage:
             f"(page {self.page})" if self.page is not None else "(unknown page name)"
         )
         return (
-            f"<Annotation of task {self.task_id} {pageif} of order {self.order}. Completed by {self.completer}, "
-            f"last updated by {self.updater}.>"
+            f"<OCRPage: task {self.task_id} {pageif} | order {self.order} | completer {self.completer} |"
+            f" updater {self.updater}.>"
         )
 
     def synthetic_starting_index(

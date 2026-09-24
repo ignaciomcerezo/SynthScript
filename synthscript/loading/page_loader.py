@@ -2,7 +2,7 @@ import functools
 import json
 import operator
 from collections import defaultdict
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from tqdm.auto import tqdm
@@ -19,6 +19,7 @@ def load_pages(
     tasks: Collection[int] | None = None,
     combine_same_page_annotations: bool = True,
     length: int | None = None,
+    transcription_homogenizer: Callable[[str], str] | None = None,
 ) -> list[OCRPage]:
     """
     Uses the information stored in paths.metadata_path to access the appropriate
@@ -72,6 +73,11 @@ def load_pages(
         polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
 
         transcriptions = metadata.load_transcriptions()
+        if transcription_homogenizer is not None:
+            transcriptions = [
+                transcription_homogenizer(transcription)
+                for transcription in transcriptions
+            ]
         polygon_coords = metadata.load_polygon_coords()
         rotations = metadata.load_rotations()
         ids = metadata.load_ids()
