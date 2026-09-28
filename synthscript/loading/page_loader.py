@@ -79,6 +79,11 @@ def load_pages(
                 transcription_homogenizer(transcription)
                 for transcription in transcriptions
             ]
+        else:
+            print(
+                "No transcription homogenizer was provided to load_pages(...). "
+                "Text will be inhomogeneous."
+            )
         polygon_coords = metadata.load_polygon_coords()
         rotations = metadata.load_rotations()
         ids = metadata.load_ids()

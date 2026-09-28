@@ -6,6 +6,7 @@ from synthscript.metric.ast.canonicalizer import (
     LatexCanonicalizer,
 )
 from synthscript.metric.ast.macro_groups import (
+    DOUBLE_ARGUMENT_MACROS,
     FRACTION_MACROS,
     GROUP_SPLITTING_MACROS,
     SINGLE_ARGUMENT_MACROS,
@@ -28,7 +29,9 @@ class LatexParser:
                 *[
                     MacroSpec(name, "{{")
                     for name in sorted(
-                        FRACTION_MACROS | set(GROUP_SPLITTING_MACROS.values())
+                        FRACTION_MACROS
+                        | set(GROUP_SPLITTING_MACROS.values())
+                        | set(DOUBLE_ARGUMENT_MACROS)
                     )
                 ],
             ],

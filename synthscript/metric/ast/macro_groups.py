@@ -29,6 +29,10 @@ SINGLE_ARGUMENT_MACROS = {
     "operatorname",
 }
 
+DOUBLE_ARGUMENT_MACROS = {
+    "stackrel",
+}
+
 # their argument is left in the comparison tree.
 TRANSPARENT_MACROS = {
     # "mathit",
