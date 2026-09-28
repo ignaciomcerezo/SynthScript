@@ -36,6 +36,12 @@ DOUBLE_ARGUMENT_MACROS = {
 # their argument is left in the comparison tree.
 TRANSPARENT_MACROS = {
     # "mathit",
+    "textit",
+    "textbf",
+    "textsl",
+    "underline",
+    "emph",
+    "footnote",
 }
 
 # removed during canonization
@@ -64,8 +70,6 @@ FRACTION_MACROS = {
     "dfrac",
     "tfrac",
 }
-
-SPACING = {"quad", "qquad", "!", ",", ";", ":"}
 
 STYLE_MACROS = {
     "mathrm",

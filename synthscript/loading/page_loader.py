@@ -8,6 +8,8 @@ from pathlib import Path
 from tqdm.auto import tqdm
 
 from synthscript.loading.page_metadata import PageSampleMetadata
+from synthscript.metric.homogenizer.ast_homogenizer import ASTHomogenizer
+from synthscript.metric.homogenizer.homogenizer import TextHomogenizer
 from synthscript.ocr_units.ocr_page import OCRPage
 from synthscript.shared.path_bundle import PathBundle
 
@@ -19,11 +21,13 @@ def load_pages(
     tasks: Collection[int] | None = None,
     combine_same_page_annotations: bool = True,
     length: int | None = None,
-    transcription_homogenizer: Callable[[str], str] | None = None,
+    transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
 ) -> list[OCRPage]:
     """
+    Loads the pages using a PathBundle. If none is provided, supposes the paths
+    have been set up in the current working directory.
     Uses the information stored in paths.metadata_path to access the appropriate
-    images, transcriptions, polygons, ids and rotations and creates AnnotatedPage
+    images, transcriptions, polygons, ids and rotations and creates OCRPage
     instances.
     """
     paths = PathBundle() if paths is None else paths
@@ -74,16 +78,18 @@ def load_pages(
         polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
 
         transcriptions = metadata.load_transcriptions()
-        if transcription_homogenizer is not None:
-            transcriptions = [
-                transcription_homogenizer(transcription)
-                for transcription in transcriptions
-            ]
-        else:
+
+        if transcription_homogenizer is None:
             print(
                 "No transcription homogenizer was provided to load_pages(...). "
-                "Text will be inhomogeneous."
+                "Using default ASTHomogenizer."
             )
+            transcription_homogenizer = ASTHomogenizer()
+
+        transcriptions = [
+            transcription_homogenizer(transcription) for transcription in transcriptions
+        ]
+
         polygon_coords = metadata.load_polygon_coords()
         rotations = metadata.load_rotations()
         ids = metadata.load_ids()
