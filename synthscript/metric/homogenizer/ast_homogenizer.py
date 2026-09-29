@@ -50,4 +50,4 @@ class ASTHomogenizer(TextHomogenizer):
         then the AST canonicalization and projection using the given parser and
         flattener.
         """
-        return self._replace_canonical(self._replace_plain(text))
+        return self._replace_canonical(self._replace_plain(text)).strip()

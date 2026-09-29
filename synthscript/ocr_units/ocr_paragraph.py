@@ -2,10 +2,10 @@ from collections.abc import Iterator
 
 import numpy as np
 
-from synthscript.ocr_units.helpers.helper_to_classes import (
+from synthscript.ocr_units.ocr_line import OCRLine
+from synthscript.shared.graph_utilities import (
     is_path_graph,
 )
-from synthscript.ocr_units.ocr_line import OCRLine
 
 
 class OCRParagraph:
@@ -33,7 +33,8 @@ class OCRParagraph:
 
         if len(subgraph) != len(lines):
             raise ValueError(
-                "The length of the subgraph passed to an OCRParagraph must be equal to the number of lines it contains."
+                "The length of the subgraph passed to an OCRParagraph must be equal to"
+                " the number of lines it contains."
             )
 
         self.lines = lines

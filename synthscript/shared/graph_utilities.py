@@ -1,28 +1,22 @@
-def get_connected_components(adj: dict[str, set]):
+def get_connected_components(adj: dict[str, set[str]]):
     """
-    Dado un grafo de adyacencia, devuelve las componentes conexas como una lista
-    de conjuntos de nodos.
+    Given a graph, returns the connected components as a list of sets of keys.
     """
-    # backtracking habitual no recursivo para generar las componentes conexas de
-    # un grafo usando un diccionario
     visited = set()
     components = []
 
     for v in adj:
-        if v not in visited:  # si es la primera vez que vemos este nodo,
+        if v not in visited:
             comp = set()
             q = [v]
             while q:
                 curr = q.pop(0)
                 if curr in visited:
                     continue
-                # añadimos el nodo a visitados y a la componente actual
                 visited.add(curr)
                 comp.add(curr)
-                # añadimos los nodos adyacentes al actual a la lista para procesar
-                # pues deben estar en la misma componente conexa.
                 q.extend(list(adj.get(curr, [])))
-            # añadimos la componente conexa
+
             components.append(comp)
     return components
 
@@ -34,17 +28,17 @@ def subdictionary(nodes, adj) -> dict[str, set[str]]:
     return subdict
 
 
-def is_path_graph(graph_dict):
+def is_path_graph(graph_dict: dict[str, set[str]]):
     """
-    checks if a graph is isomorphic to a path graph by checking if it is connected and
-    its degree sequence matches that of a path graph.
+    Checks if a graph is isomorphic to a path graph checking connectedness and the
+    degree sequence.
     """
     n = len(graph_dict)
 
     if n == 0:
         return False
     if n == 1:
-        return len(list(graph_dict.values())[0]) == 0
+        return len(next(iter(graph_dict.values()))) == 0
 
     degrees = [len(neighbors) for neighbors in graph_dict.values()]
 

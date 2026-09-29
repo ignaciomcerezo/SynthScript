@@ -14,13 +14,24 @@ from pylatexenc.latexwalker import (
 )
 
 from synthscript.metric.ast.macro_groups import (
+    ARGUMENTLESS_MACRO_REPLACEMENTS,
+    CONTENT_INDEPENDENT_ENVIRONMENTS,
     CONTENT_INDEPENDENT_MACROS,
+    CONTENT_INDEPENDENT_MACROS_WITH_ARGS,
     FRACTION_MACROS,
     GROUP_SPLITTING_MACROS,
     MACRO_ALIASES,
-    STYLE_DECLARATIONS,
+    MATH_MODE_MACRO_REPLACEMENTS,
+    MATH_MODE_SPECIAL_REPLACEMENTS,
+    MATH_STYLE_DECLARATIONS,
+    SINGLE_TEXT_ARGUMENT_MACRO_REPLACEMENTS,
     STYLE_MACROS,
+    TEXT_MODE_MACRO_REPLACEMENTS,
+    TEXT_MODE_SPECIAL_REPLACEMENTS,
+    TEXT_STYLE_DECLARATIONS,
+    TRANSPARENT_ENVIRONMENTS,
     TRANSPARENT_MACROS,
+    CanonicalReplacement,
 )
 from synthscript.metric.ast.node import CanonicalNode, NodeKind, SourceSpan
 
@@ -228,7 +239,7 @@ class LatexCanonicalizer:
         def flush_segment() -> None:
             if not segment:
                 return
-            if active_style is None:
+            if active_style is None or active_style in TRANSPARENT_MACROS:
                 result.extend(segment)
             else:
                 result.append(
@@ -246,11 +257,9 @@ class LatexCanonicalizer:
             segment.clear()
 
         for node in nodes:
-            if self._is_plain_macro(node, STYLE_DECLARATIONS):
+            if node.kind == NodeKind.STYLE and not node.children:
                 flush_segment()
-                source_name = node.value
-                assert source_name is not None
-                active_style = STYLE_DECLARATIONS[source_name]
+                active_style = node.value
             elif self._is_plain_macro(node, GROUP_SPLITTING_MACROS):
                 flush_segment()
                 result.append(node)
@@ -317,12 +326,16 @@ class LatexCanonicalizer:
 
     def _group(self, node: LatexGroupNode) -> CanonicalNode | list[CanonicalNode]:
         """Remove grouping syntax consumed by declarations or infix macros."""
+        in_math = getattr(getattr(node, "parsing_state", None), "in_math_mode", False)
+        style_declarations = (
+            MATH_STYLE_DECLARATIONS if in_math else TEXT_STYLE_DECLARATIONS
+        )
         direct_macros = {
             child.macroname
             for child in node.nodelist
             if isinstance(child, LatexMacroNode)
         }
-        contains_declaration = bool(direct_macros & STYLE_DECLARATIONS.keys())
+        contains_declaration = bool(direct_macros & style_declarations.keys())
         contains_splitter = bool(direct_macros & GROUP_SPLITTING_MACROS.keys())
 
         value = None if node.delimiters == ("{", "}") else repr(node.delimiters)
@@ -455,15 +468,39 @@ class LatexCanonicalizer:
         self, node: LatexMacroNode
     ) -> CanonicalNode | list[CanonicalNode] | None:
         """Apply aliases and special macro rules, preserving other macros."""
-        if node.macroname in CONTENT_INDEPENDENT_MACROS:
-            return None
-        if node.macroname in STYLE_DECLARATIONS or node.macroname in (
-            GROUP_SPLITTING_MACROS
+        in_math = getattr(getattr(node, "parsing_state", None), "in_math_mode", False)
+        mode_replacements = (
+            MATH_MODE_MACRO_REPLACEMENTS if in_math else TEXT_MODE_MACRO_REPLACEMENTS
+        )
+        if node.macroname in mode_replacements:
+            return self._replacement_result(mode_replacements[node.macroname])
+        arguments = self._macro_arguments(node)
+        if (
+            node.macroname in CONTENT_INDEPENDENT_MACROS
+            or node.macroname in CONTENT_INDEPENDENT_MACROS_WITH_ARGS
         ):
+            return None
+        style_declarations = (
+            MATH_STYLE_DECLARATIONS if in_math else TEXT_STYLE_DECLARATIONS
+        )
+        if not arguments and node.macroname in style_declarations:
+            return CanonicalNode(
+                kind=NodeKind.STYLE,
+                value=style_declarations[node.macroname],
+                span=self._span(node),
+            )
+        if node.macroname in GROUP_SPLITTING_MACROS:
             name = node.macroname
         else:
             name = self.config.macro_aliases.get(node.macroname, node.macroname)
-        arguments = self._macro_arguments(node)
+        if not arguments and name in ARGUMENTLESS_MACRO_REPLACEMENTS:
+            return self._replacement_result(ARGUMENTLESS_MACRO_REPLACEMENTS[name])
+        argument_text = self._single_text_argument(arguments)
+        argument_key = (name, argument_text or "")
+        if argument_key in SINGLE_TEXT_ARGUMENT_MACRO_REPLACEMENTS:
+            return self._replacement_result(
+                SINGLE_TEXT_ARGUMENT_MACRO_REPLACEMENTS[argument_key]
+            )
         if name in FRACTION_MACROS:
             return self._fraction(node, arguments)
         if name == "sqrt":
@@ -481,10 +518,37 @@ class LatexCanonicalizer:
             span=self._span(node),
         )
 
-    def _environment(self, node: LatexEnvironmentNode) -> CanonicalNode:
+    @staticmethod
+    def _replacement_result(
+        replacement: CanonicalReplacement,
+    ) -> CanonicalNode | list[CanonicalNode] | None:
+        if isinstance(replacement, tuple):
+            return list(replacement)
+        return replacement
+
+    @staticmethod
+    def _single_text_argument(arguments: list[CanonicalNode]) -> str | None:
+        if len(arguments) != 1:
+            return None
+        argument = arguments[0]
+        if (
+            argument.kind == NodeKind.GROUP
+            and len(argument.children) == 1
+            and argument.children[0].kind == NodeKind.TEXT
+        ):
+            return argument.children[0].value
+        return None
+
+    def _environment(
+        self, node: LatexEnvironmentNode
+    ) -> CanonicalNode | list[CanonicalNode] | None:
         """Keep present environment arguments separate from its body nodes."""
         arguments = self._macro_arguments(node)
         children: tuple[CanonicalNode, ...] = tuple(self._visit_many(node.nodelist))
+        if node.environmentname in CONTENT_INDEPENDENT_ENVIRONMENTS:
+            return None
+        if node.environmentname in TRANSPARENT_ENVIRONMENTS and not arguments:
+            return list(children)
         if arguments:
             children = (
                 CanonicalNode(kind=NodeKind.ARGUMENTS, children=tuple(arguments)),
@@ -497,10 +561,19 @@ class LatexCanonicalizer:
             span=self._span(node),
         )
 
-    def _special(self, node: LatexSpecialsNode) -> CanonicalNode:
+    def _special(
+        self, node: LatexSpecialsNode
+    ) -> CanonicalNode | list[CanonicalNode] | None:
         """Represent math scripts and other special macros as symbols."""
         arguments = self._macro_arguments(node)
         in_math = getattr(getattr(node, "parsing_state", None), "in_math_mode", False)
+        mode_replacements = (
+            MATH_MODE_SPECIAL_REPLACEMENTS
+            if in_math
+            else TEXT_MODE_SPECIAL_REPLACEMENTS
+        )
+        if node.specials_chars in mode_replacements:
+            return self._replacement_result(mode_replacements[node.specials_chars])
         if in_math and node.specials_chars in ("^", "_") and len(arguments) == 1:
             kind = (
                 NodeKind.SUPERSCRIPT

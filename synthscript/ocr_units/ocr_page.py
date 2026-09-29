@@ -7,17 +7,13 @@ import numpy as np
 from shapely.affinity import translate
 from shapely.geometry import Polygon
 
-from synthscript.ocr_units.helpers.helper_to_classes import (
-    get_connected_components,
-    subdictionary,
-)
-from synthscript.ocr_units.helpers.text_regularization import (
-    regularize_line,
-    regularize_text,
-)
 from synthscript.ocr_units.ocr_line import OCRLine
 from synthscript.ocr_units.ocr_paragraph import OCRParagraph
 from synthscript.shared.geometry_processing import get_union_rect
+from synthscript.shared.graph_utilities import (
+    get_connected_components,
+    subdictionary,
+)
 from synthscript.shared.image_processing import (
     crop_image_with_polygon,
     crop_or_resize,
@@ -94,7 +90,7 @@ class OCRPage:
         self._setup_graph_and_paragraphs()
 
         # only pages that lay inside of a paragraph have an sindex
-        self._correct_text_and_set_sindices_and_transcription()
+        self._set_indices_and_transcription()
 
     @property
     def image_dimensions(self) -> tuple[int, int]:
@@ -164,7 +160,7 @@ class OCRPage:
                     )
                 combined_ocr_page.lines[line.id] = line
 
-        combined_ocr_page._correct_text_and_set_sindices_and_transcription()
+        combined_ocr_page._set_indices_and_transcription()
 
         return combined_ocr_page
 
@@ -280,28 +276,12 @@ class OCRPage:
             )
         ]
 
-    def _correct_text_and_set_sindices_and_transcription(self):
-        """
-        Corrects the text, sets line indices and
-        """
+    def _set_indices_and_transcription(self) -> None:
+        """Set paragraph/line indices and assemble the page transcription."""
         sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
-            temporary_separator = "\n\x00\n"
-            raw_separated_transcription = paragraph.transcription(temporary_separator)
-            regularized_transcriptions = regularize_text(
-                raw_separated_transcription
-            ).split(temporary_separator)
-
-            if len(regularized_transcriptions) != len(paragraph.lines):
-                raise ValueError(
-                    "The number of lines after text regularization and the number of original lines do not match."
-                )
-
-            for line, new_transcription in zip(
-                paragraph.lines, regularized_transcriptions, strict=True
-            ):
-                line.text = regularize_line(new_transcription)
+            for line in paragraph.lines:
                 line.index = sindex
                 sindex += len(line.text) + len(self.line_separator)
         lines = sorted(
