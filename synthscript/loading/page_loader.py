@@ -16,7 +16,7 @@ from synthscript.shared.path_bundle import PathBundle
 
 def load_pages(
     *,
-    paths: PathBundle | None = None,
+    root_path: PathBundle | Path | str | None = None,
     pages: Collection[str | int] | None = None,
     tasks: Collection[int] | None = None,
     combine_same_page_annotations: bool = True,
@@ -30,7 +30,10 @@ def load_pages(
     images, transcriptions, polygons, ids and rotations and creates OCRPage
     instances.
     """
-    paths = PathBundle() if paths is None else paths
+
+    paths = (
+        PathBundle(root_path) if not isinstance(root_path, PathBundle) else root_path
+    )
 
     tasks: set[int] | None = (
         set([task for task in tasks]) if isinstance(tasks, Collection) else None

@@ -1,15 +1,20 @@
+from pathlib import Path
+
 from synthscript.loading.external_interfaces.external_interface import ExternalInterface
 from synthscript.shared.path_bundle import PathBundle
 
 
 def setup(
     external_interfaces: list[ExternalInterface],
-    paths: PathBundle | None = None,
+    root_path: PathBundle | Path | str | None = None,
 ):
     """
-    Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
+    Downloads all files needed to instanciate the dataset given some external interfaces
+    and a path to store them.
     """
-    paths = PathBundle() if paths is None else paths
+    paths = (
+        PathBundle(root_path) if not isinstance(root_path, PathBundle) else root_path
+    )
     parts = set()
     for i, ext_int_1 in enumerate(external_interfaces):
         pm_1 = ext_int_1.parts_managed()
@@ -31,8 +36,9 @@ def setup(
             )
             raise ValueError(
                 f"External interface {ext_int_1} needs parts {pr} to setup, but "
-                f"only {parts} is setup when it is called {prev_msg}. Try reordering the external interfaces to solve this, "
-                "or perhaps the combination you chose is just incompatible."
+                f"only {parts} is setup when it is called {prev_msg}. Try reordering "
+                "the external interfaces to solve this, or perhaps the combination "
+                "you chose is just incompatible."
             )
         parts.update(pm_1)
 
