@@ -95,6 +95,19 @@ class ConfiguredNodeMetrics:
         """Return the total weight of a subtree."""
         return self.weight(node) + sum(self.mass(child) for child in node.children)
 
+    def math_percentage(self, node: Node) -> float:
+        """Return the fraction of a subtree's mass that belongs to math nodes."""
+        total_mass = self.mass(node)
+        if total_mass == 0:
+            return 0.0
+
+        def _math_mass(current: Node) -> float:
+            if current.kind in {NodeKind.MATH, MetricNodeKind.MATH}:
+                return self.mass(current)
+            return sum(_math_mass(child) for child in current.children)
+
+        return _math_mass(node) / total_mass
+
     def unit_cost(self, node: MetricNode) -> float:
         return 1
 
@@ -193,6 +206,7 @@ class ConfiguredNodeMetrics:
         if source.kind == target.kind and source.value == target.value:
             return 0.0
         if source.kind == target.kind == MetricNodeKind.CHAR:
+            # TODO: implement visual metric here
             return self.levenshtein_cost(source, target)
         if self.are_compatible(source, target):
             return self.compatible_substitution_cost(
