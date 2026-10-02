@@ -159,6 +159,7 @@ TEXT_STYLE_DECLARATIONS = {
     "rm": "textrm",
     "sf": "textsf",
     "tt": "texttt",
+    "sl": "textsl",
 }
 
 MATH_STYLE_DECLARATIONS = {
@@ -169,4 +170,5 @@ MATH_STYLE_DECLARATIONS = {
     "rm": "mathrm",
     "sf": "mathsf",
     "tt": "mathtt",
+    "sl": "textsl",
 }

@@ -46,13 +46,13 @@ class OCRDataset(BaseAnnotationDataset):
 
     def __init__(
         self,
-        annotations: Sequence[OCRPage],
+        ocrpages: Sequence[OCRPage],
         *,
         orders: orders_type,
         rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
-        self._annotated_pages = annotations
+        self._annotated_pages = ocrpages
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
@@ -81,6 +81,22 @@ class OCRDataset(BaseAnnotationDataset):
         """
         Chooses a line cluster / paragraph / full page using only the available orders.
         Each sample is chosen uniformly, and applies the layout transforms defined.
+        Finally, it applies the defined formatter to the sample.
+        """
+
+        sample = self.getitem_no_formatter(index)
+
+        if self._formatter is None:
+            return sample
+        else:
+            return self._formatter(sample)
+
+    def getitem_no_formatter(self, index: int):
+        """
+        Chooses a line cluster / paragraph / full page using only the available orders
+        as in the usual __getitem__ method defined for this class. Each sample is chosen
+        uniformly, and applies the layout transforms defined.
+        The formatter is NOT applied to the sample.
         """
         if index < 0 or index >= self._size:
             raise IndexError(
@@ -117,10 +133,7 @@ class OCRDataset(BaseAnnotationDataset):
             "page_id": ann.task_id,
         }
 
-        if self._formatter is None:
-            return sample
-        else:
-            return self._formatter(sample)
+        return sample
 
     @property
     def formatter(self) -> _OCRDataset_formatter_signature | None:

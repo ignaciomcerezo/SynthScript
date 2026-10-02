@@ -28,22 +28,22 @@ class ConfiguredNodeMetrics:
     character_weight: float = 1
     comment_weight: float = 1
     comment_character_weight: float = 1
-    math_weight: float = 0.9  # prev. 1
-    symbol_weight: float = 1
+    math_weight: float = 1
+    symbol_weight: float = 0.9
     macro_weight: float = 1
-    group_weight: float = 0.4  # prev. 0.5
+    group_weight: float = 0.5
     environment_weight: float = 1
     arguments_weight: float = 0
-    fraction_weight: float = 1.9  # prev. 2
-    sqrt_weight: float = 1.9  # prev 2
-    superscript_weight: float = 0.9  # prev 1.
-    subscript_weight: float = 0.9  # prev. 1
+    fraction_weight: float = 1.8
+    sqrt_weight: float = 2
+    superscript_weight: float = 1
+    subscript_weight: float = 1
     subsup_weight: float = 2
-    style_weight: float = 0.9  # prev 1.
+    style_weight: float = 1
 
-    mass_factor: float = 0.9  # prev 1.
+    weight_factor: float = 1.1
 
-    subscript_superscript_cost: float = 1.1  # prev 1.
+    subscript_superscript_cost: float = 1.2  # prev 1.
     script_subsup_cost: float = 0.5
     style_macro_cost: float = 1
     macro_substitution_cost: float = 1
@@ -111,8 +111,8 @@ class ConfiguredNodeMetrics:
     def unit_cost(self, node: MetricNode) -> float:
         return 1
 
-    def mass_cost(self, node: MetricNode) -> float:
-        return self.mass_factor * self.mass(node)
+    def weight_cost(self, node: MetricNode) -> float:
+        return self.weight_factor * self.weight(node)
 
     @staticmethod
     def are_compatible(source: MetricNode, target: MetricNode) -> bool:
@@ -151,8 +151,8 @@ class ConfiguredNodeMetrics:
         insertion_cost: UnaryCost | None = None,
         equal_cost: BinaryCost | None = None,
     ) -> float:
-        deletion = deletion_cost or self.mass_cost
-        insertion = insertion_cost or self.mass_cost
+        deletion = deletion_cost or self.weight_cost
+        insertion = insertion_cost or self.weight_cost
         equal = equal_cost or self.levenshtein_cost
 
         if source.kind == target.kind and source.value == target.value:
@@ -200,8 +200,8 @@ class ConfiguredNodeMetrics:
         deletion_cost: UnaryCost | None = None,
         insertion_cost: UnaryCost | None = None,
     ) -> float:
-        deletion = deletion_cost or self.mass_cost
-        insertion = insertion_cost or self.mass_cost
+        deletion = deletion_cost or self.weight_cost
+        insertion = insertion_cost or self.weight_cost
 
         if source.kind == target.kind and source.value == target.value:
             return 0.0

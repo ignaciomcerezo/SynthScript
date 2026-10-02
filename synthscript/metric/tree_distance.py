@@ -30,8 +30,8 @@ def tree_edit_distance(
     distance algorithm.
     """
     metric = parameters or DEFAULT_CONFIGURED_METRIC
-    insertion = insertion_cost or metric.mass_cost
-    deletion = deletion_cost or metric.mass_cost
+    insertion = insertion_cost or metric.weight_cost
+    deletion = deletion_cost or metric.weight_cost
     substitution = substitution_cost or metric.substitution_cost
 
     metric_source = (

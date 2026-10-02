@@ -23,6 +23,7 @@ LATEX_LITERAL_REPLACEMENTS = _deproto(
         (r"\varprojlim", r"\lim_{\leftarrow}"),
         (r"\varinjlim", r"\lim_{\to}"),
         (r"\/", ""),
+        (r"\'", "'"),
     ]
 )
 

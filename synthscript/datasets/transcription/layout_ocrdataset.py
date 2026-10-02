@@ -52,7 +52,7 @@ class LayoutOCRDataset(BaseAnnotationDataset):
         for ann in self._base_annotations:
             new_anns.append(self._layout_generator.apply(ann))
         self._underlying_dataset = OCRDataset(
-            annotations=new_anns,
+            ocrpages=new_anns,
             orders=orders,
             rng=self.rng,
             cluster_transform_params=params,
@@ -63,7 +63,7 @@ class LayoutOCRDataset(BaseAnnotationDataset):
         for ann in self._base_annotations:
             new_anns.append(self._layout_generator.apply(ann))
         self._underlying_dataset = OCRDataset(
-            annotations=new_anns,
+            ocrpages=new_anns,
             orders=self.orders,
             rng=self.rng,
             cluster_transform_params=self.cluster_params,
