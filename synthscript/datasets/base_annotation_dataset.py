@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
 
 import numpy as np
 
@@ -42,6 +42,11 @@ RNGInput = np.random.Generator | int | None
 T = TypeVar("T", bound="BaseAnnotationDataset")
 
 
+class CurriculumHistoryEntry(TypedDict):
+    orders: list[int | Literal["paragraph", "page"]]
+    epochs: float
+
+
 @dataclass
 class ClusterParams:
     tight_layout: bool = True
@@ -59,6 +64,8 @@ class BaseAnnotationDataset(Dataset, ABC):
     _orders: list[int]
     _use_paragraphs: bool
     _use_full_pages: bool
+    _previous_history: list[CurriculumHistoryEntry]
+    _samples_solicited: int
     _transforms: OCRTransformPack = field(default_factory=lambda: OCRTransformPack())
     _image_transforms: ImageTransformPack = field(
         default_factory=lambda: ImageTransformPack()
@@ -106,6 +113,29 @@ class BaseAnnotationDataset(Dataset, ABC):
             + ["page"] * self._use_full_pages
         )
 
+    def _history_entry(
+        self,
+        orders: Sequence[int | Literal["paragraph", "page"]],
+        samples_solicited: int,
+        size: int,
+    ) -> CurriculumHistoryEntry:
+        return {
+            "orders": list(orders),
+            "epochs": samples_solicited / size if size else 0.0,
+        }
+
+    @property
+    def history(self) -> list[CurriculumHistoryEntry]:
+        """Completed curriculum phases followed by the current phase."""
+        previous_history = [
+            CurriculumHistoryEntry(orders=entry["orders"], epochs=entry["epochs"])
+            for entry in self._previous_history
+        ]
+        return [
+            *previous_history,
+            self._history_entry(self.orders, self._samples_solicited, len(self)),
+        ]
+
     @property
     def cluster_params(self) -> ClusterParams:
         return self._cluster_params
@@ -144,11 +174,25 @@ class BaseAnnotationDataset(Dataset, ABC):
         if self._use_full_pages:
             pseudo_old_orders.add("page")
 
-        if set(new_orders) != pseudo_old_orders:
+        orders_changed = set(new_orders) != pseudo_old_orders
+        is_initial_update = not hasattr(self, "_size")
+        previous_entry: CurriculumHistoryEntry | None = None
+
+        if orders_changed:
+            if not is_initial_update:
+                previous_entry = self._history_entry(
+                    self.orders, self._samples_solicited, len(self)
+                )
             self._orders = [x for x in new_orders if isinstance(x, int)]
             self._use_paragraphs = "paragraph" in new_orders
             self._use_full_pages = "page" in new_orders
+
+        if orders_changed or is_initial_update:
             self._recalculate_size_and_sampling_params()
+
+        if orders_changed and previous_entry is not None:
+            self._previous_history.append(previous_entry)
+            self._samples_solicited = 0
 
     def update_stage(
         self,
@@ -223,9 +267,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     def __len__(self) -> int:
         return self._size
 
-    def _gets_ann_ids_order_and_identifier(
-        self, index: int
-    ) -> tuple[
+    def _gets_ann_ids_order_and_identifier(self, index: int) -> tuple[
         OCRPage,
         Sequence[str],
         int | Literal["paragraph", "page"],
@@ -246,6 +288,8 @@ class BaseAnnotationDataset(Dataset, ABC):
             raise IndexError(
                 f"Index {index} out of bounds for dataset of size {self._size}"
             )
+
+        self._samples_solicited += 1
 
         page_idx = int(
             np.searchsorted(

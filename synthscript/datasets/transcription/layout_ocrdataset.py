@@ -5,6 +5,7 @@ from typing import Literal
 from synthscript.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     ClusterParams,
+    CurriculumHistoryEntry,
     RNGInput,
     orders_type,
 )
@@ -59,6 +60,8 @@ class LayoutOCRDataset(BaseAnnotationDataset):
         )
 
     def refresh_layouts(self):
+        previous_history = self._underlying_dataset._previous_history
+        samples_solicited = self._underlying_dataset._samples_solicited
         new_anns = []
         for ann in self._base_annotations:
             new_anns.append(self._layout_generator.apply(ann))
@@ -68,6 +71,8 @@ class LayoutOCRDataset(BaseAnnotationDataset):
             rng=self.rng,
             cluster_transform_params=self.cluster_params,
         )
+        self._underlying_dataset._previous_history = previous_history
+        self._underlying_dataset._samples_solicited = samples_solicited
 
     @property
     def orders(self):
@@ -77,6 +82,10 @@ class LayoutOCRDataset(BaseAnnotationDataset):
     def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
 
         self._underlying_dataset.orders = value
+
+    @property
+    def history(self) -> list[CurriculumHistoryEntry]:
+        return self._underlying_dataset.history
 
     @property
     def cluster_params(self):

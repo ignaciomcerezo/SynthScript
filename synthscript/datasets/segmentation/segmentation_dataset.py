@@ -40,6 +40,8 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
+        self._previous_history = []
+        self._samples_solicited = 0
         self.rng = rng
         self._transforms: OCRTransformPack = OCRTransformPack(rng=self.rng)
         self._image_transforms = ImageTransformPack(rng=self.rng)
