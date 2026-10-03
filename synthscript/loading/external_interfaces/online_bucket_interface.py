@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 import cv2
+import numpy as np
 import requests
 from dotenv import load_dotenv
 from tqdm.auto import tqdm
@@ -34,13 +35,13 @@ class OnlineBucketInterface(ExternalInterface):
                 bucket_url = str(os.getenv("BUCKET_URL"))
             else:
                 raise ValueError(
-                    "Either a bucket_url is provided or one can be found in the env variables (as BUCKET_URL)."
+                    "Either a bucket_url is provided or one can be found in the "
+                    "environment variables (as BUCKET_URL)."
                 )
         self.bucket_url = self._normalize_bucket_url(bucket_url)
         self.folder = self._normalize_folder(folder)
         self._timeout = 15
         self._type_downloading = what_downloading
-        self.corresponding_path_accesor  # to check it is of the correct type
 
         if not extension_wanted.startswith("."):
             extension_wanted = f".{extension_wanted}"
@@ -73,7 +74,7 @@ class OnlineBucketInterface(ExternalInterface):
         folder: str | None = None,
         env_var: str = "BUCKET_URL",
     ) -> OnlineBucketInterface:
-        """Generates an instance taking missing data from the environment variables and dotenv."""
+        """Generate an instance using the environment for missing data."""
         try:
             load_dotenv()
         except Exception:
@@ -175,9 +176,16 @@ class OnlineBucketInterface(ExternalInterface):
 
             local_img = self.corresponding_path_accesor(paths)(page_name)
             local_img.parent.mkdir(parents=True, exist_ok=True)
-            local_img.write_bytes(img_resp.content)
-            img = cv2.imread(str(local_img), cv2.IMREAD_GRAYSCALE)
-            cv2.imwrite(str(local_img), img)  # ty: ignore[no-matching-overload]
+            img = cv2.imdecode(
+                np.frombuffer(img_resp.content, dtype=np.uint8),
+                cv2.IMREAD_GRAYSCALE,
+            )
+            if img is None:
+                raise ValueError(f"Downloaded image {img_url!r} could not be decoded.")
+            encoded, buffer = cv2.imencode(local_img.suffix, img)
+            if not encoded:
+                raise ValueError(f"Downloaded image {img_url!r} could not be encoded.")
+            local_img.write_bytes(buffer.tobytes())
             return page_name
 
     def setup(self, paths: PathBundle) -> None:
@@ -186,8 +194,9 @@ class OnlineBucketInterface(ExternalInterface):
         pending = self._compute_pending_objects(paths)
         if not pending:
             return
+        target = self.corresponding_path_accesor(paths)("*")
         print(
-            f" - Downloading images into {self.corresponding_path_accesor(paths)('*')!s}"
+            f" - Downloading images into {target!s}"
         )
 
         with ThreadPoolExecutor() as executor:

@@ -1,3 +1,5 @@
+import json
+import math
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Literal
@@ -30,8 +32,7 @@ ImageTransformCallable = Callable[[np.ndarray], np.ndarray]
 
 class OCRPage:
     """
-    Single annotated page, gathers all the information about lines and paragraphs, and implements some
-    methods to create synthetic annotations by using only some of the lines in a page (.synthetic_sample).
+    In-memory annotated page with lines, paragraphs, and synthetic sampling.
     """
 
     n_annotation_errors: int = 0
@@ -39,14 +40,12 @@ class OCRPage:
     __slots__ = (
         "_graph",
         "background",
-        "completer",
         "full_transcription",
         "line_separator",
         "lines",
-        "page",
+        "metadata",
+        "page_id",
         "paragraphs",
-        "task_id",
-        "updater",
     )
 
     def __init__(
@@ -56,25 +55,22 @@ class OCRPage:
         polygon_coords: list[list[tuple[float, float]]],
         line_ids: list[str],
         rotations: list[float],
-        task_id: int,
-        page: str,
+        page_id: str,
         stroke: np.ndarray,
         background: np.ndarray,
         line_separtor: str = "\n",
-        completer: str | None = None,
-        updater: str | None = None,
-        polygons_are_in_percentage: bool = True,
+        metadata: dict[str, str] | None = None,
+        paragraph_line_ids: list[list[str]] | None = None,
+        paragraph_ids: list[str | None] | None = None,
     ):
         stroke = to_grayscale(stroke)
         background = to_grayscale(background)
         if stroke.shape != background.shape:
             raise ValueError("Stroke and background must have the same dimensions.")
         self.background = background
-        self.task_id = task_id
-        self.page = page
+        self.page_id = str(page_id)
+        self.metadata = dict(metadata or {})
         self.line_separator = line_separtor
-        self.completer = completer if completer is not None else "Unknown"
-        self.updater = updater if updater is not None else "Unknown"
 
         list_lines = self._setup_lines(
             polygon_coords,
@@ -82,15 +78,41 @@ class OCRPage:
             line_ids,
             rotations,
             stroke,
-            polygons_are_in_percentage,
         )
 
         self.lines = {line.id: line for line in list_lines}
 
-        self._setup_graph_and_paragraphs()
+        self._setup_intersection_graph()
+        if paragraph_line_ids is None:
+            self._infer_paragraphs_from_geometry()
+        else:
+            self._setup_paragraphs_from_explicit_layout(
+                paragraph_line_ids,
+                paragraph_ids=paragraph_ids,
+            )
 
         # only pages that lay inside of a paragraph have an sindex
         self._set_indices_and_transcription()
+
+    @classmethod
+    def from_explicit_layout(
+        cls,
+        *,
+        paragraph_line_ids: list[list[str]],
+        paragraph_ids: list[str | None] | None = None,
+        **kwargs,
+    ) -> "OCRPage":
+        """Build a page while preserving the supplied region and line order."""
+        return cls(
+            paragraph_line_ids=paragraph_line_ids,
+            paragraph_ids=paragraph_ids,
+            **kwargs,
+        )
+
+    @property
+    def page(self) -> str:
+        """Compatibility alias for the generic page identity."""
+        return self.page_id
 
     @property
     def image_dimensions(self) -> tuple[int, int]:
@@ -102,14 +124,11 @@ class OCRPage:
         """
         Combines several AnnotatedPage instances into a single new one.
 
-        All of the paragraphs from every given annotation are gathered as-is: their lines,
-        subgraphs, indices and starting indices are left completely untouched. The only thing
-        this method does with the paragraphs themselves is reorder them, top to bottom, using
-        the top coordinate of each paragraph's topmost line (i.e. `paragraph.top`, which is
-        by construction the minimum `.top` among the paragraph's lines).
+        Paragraph contents remain untouched. The combined paragraphs are ordered from
+        top to bottom using each paragraph's topmost line.
 
-        The rest of the resulting AnnotatedPage's metadata (background, stroke, task_id...)
-        is inherited from the first annotation passed in.
+        All annotations must describe the same physical page. Conflicting provenance
+        is retained in ``synthscript.combined_annotations``.
         """
         if not annotations:
             raise ValueError("combine_annotations needs at least one AnnotatedPage.")
@@ -120,12 +139,10 @@ class OCRPage:
             for paragraph in annotation.paragraphs
         ]
 
-        if (len(set(ann.page for ann in annotations)) != 1) and (
-            len(set(ann.task_id for ann in annotations)) != 1
-        ):
-            raise ValueError(
-                "Can only commbine annotations from the same page and task."
-            )
+        if len({ann.page_id for ann in annotations}) != 1:
+            raise ValueError("Can only combine annotations from the same page.")
+        if len({ann.image_dimensions for ann in annotations}) != 1:
+            raise ValueError("Cannot combine annotations with different image sizes.")
         background = annotations[0].background
         all_paragraphs.sort(key=lambda paragraph: paragraph.top)
 
@@ -143,19 +160,17 @@ class OCRPage:
         )
         for index, paragraph in enumerate(combined_ocr_page.paragraphs):
             paragraph.index = index
-        combined_ocr_page.task_id = first.task_id
         combined_ocr_page.line_separator = first.line_separator
-        combined_ocr_page.completer = first.completer
-        combined_ocr_page.updater = "+".join(other.updater for other in annotations)
         combined_ocr_page.background = background
-        combined_ocr_page.page = first.page
+        combined_ocr_page.page_id = first.page_id
+        combined_ocr_page.metadata = cls._merge_metadata(annotations)
 
         combined_ocr_page.lines = {}
         for paragraph in combined_ocr_page.paragraphs:
             for line in paragraph.lines:
                 if line.id in combined_ocr_page.lines:
                     raise ValueError(
-                        f"Duplicate line id {line.id!r} found while combining paragraphs "
+                        f"Duplicate line ID {line.id!r} while combining paragraphs "
                         "into a single AnnotatedPage."
                     )
                 combined_ocr_page.lines[line.id] = line
@@ -164,6 +179,26 @@ class OCRPage:
 
         return combined_ocr_page
 
+    @staticmethod
+    def _merge_metadata(annotations: tuple["OCRPage", ...]) -> dict[str, str]:
+        keys = set().union(*(annotation.metadata for annotation in annotations))
+        merged: dict[str, str] = {}
+        for key in keys:
+            values = {
+                annotation.metadata[key]
+                for annotation in annotations
+                if key in annotation.metadata
+            }
+            if len(values) == 1:
+                merged[key] = values.pop()
+        if any(annotation.metadata != merged for annotation in annotations):
+            merged["synthscript.combined_annotations"] = json.dumps(
+                [annotation.metadata for annotation in annotations],
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        return merged
+
     @property
     def order(self) -> int:
         """Total number of lines"""
@@ -171,7 +206,7 @@ class OCRPage:
 
     @property
     def graph(self) -> dict[str, set[str]]:
-        """Line's polygon annotation intersection graph which keys are the ImageBox(es) ids"""
+        """Return the line-polygon intersection graph, keyed by line ID."""
         return self._graph
 
     def _setup_lines(
@@ -181,7 +216,6 @@ class OCRPage:
         line_ids: list[str],
         rotations: list[float],
         stroke: np.ndarray,
-        polygons_are_in_percentage: bool,
     ) -> list[OCRLine]:
 
         if not (
@@ -196,25 +230,32 @@ class OCRPage:
             == 1
         ):
             raise ValueError(
-                "Inhomogeneous lengths of polygon_coords, transcriptions, line_ids and rotations."
+                "polygon_coords, transcriptions, line_ids, and rotations must "
+                "have equal lengths."
             )
 
-        if polygons_are_in_percentage:
-            page_height, page_width = stroke.shape
-            polygons = []
-            for i in range(len(polygon_coords)):
-                polygon_coord = polygon_coords[i]
+        if len(set(line_ids)) != len(line_ids):
+            raise ValueError("Line IDs must be unique within an OCRPage.")
 
-                polygons.append(
-                    Polygon(
-                        [
-                            (p[0] * page_width / 100.0, p[1] * page_height / 100.0)
-                            for p in polygon_coord
-                        ]
-                    )
+        polygons: list[Polygon] = []
+        for polygon_coord in polygon_coords:
+            if len(polygon_coord) < 3:
+                raise ValueError("A line polygon needs at least three points.")
+            if any(
+                not math.isfinite(value) or value < 0
+                for point in polygon_coord
+                for value in point
+            ):
+                raise ValueError(
+                    "Line polygon coordinates must be finite and non-negative."
                 )
-        else:
-            polygons = [Polygon(polygon_coord) for polygon_coord in polygon_coords]
+            polygon = Polygon(polygon_coord)
+            if polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
+                raise ValueError("A line polygon must be non-empty and valid.")
+            polygons.append(polygon)
+
+        if any(not math.isfinite(float(rotation)) for rotation in rotations):
+            raise ValueError("Line rotations must be finite.")
 
         lines = []
 
@@ -228,19 +269,15 @@ class OCRPage:
                     crop=stroke_crop,
                     polygon=polygon,
                     rotation=rotation,
-                    task_id=self.task_id,
+                    page_id=self.page_id,
                     text=transcription,
                 )
             )
 
         return lines
 
-    def _setup_graph_and_paragraphs(self):
-        """
-        Builds the intersection graph given by the polygons of the ImageBoxes.
-        Also groups them into paragraphs (connected components) and sorts the
-        boxes in their reading order.
-        """
+    def _setup_intersection_graph(self) -> None:
+        """Build the line-polygon intersection graph used by transforms."""
         lines = list(self.lines.values())
 
         adj: dict[str, set[str]] = {line.id: set() for line in lines}
@@ -252,6 +289,10 @@ class OCRPage:
                     adj[line_b.id].add(line_a.id)
 
         self._graph = adj
+
+    def _infer_paragraphs_from_geometry(self) -> None:
+        """Infer paragraphs and reading order from connected line polygons."""
+        adj = self.graph
 
         connected_components = get_connected_components(adj)
 
@@ -269,12 +310,52 @@ class OCRPage:
 
         self.paragraphs = [
             OCRParagraph(
-                lines=line_cc, task_id=self.task_id, subgraph=line_ids_cc, index=idx
+                lines=line_cc,
+                page_id=self.page_id,
+                subgraph=line_ids_cc,
+                id=f"region_{idx}",
+                index=idx,
             )
             for (idx, (line_cc, line_ids_cc)) in enumerate(
                 zip(line_ccs, line_id_ccs, strict=True)
             )
         ]
+
+    def _setup_paragraphs_from_explicit_layout(
+        self,
+        paragraph_line_ids: list[list[str]],
+        *,
+        paragraph_ids: list[str | None] | None,
+    ) -> None:
+        if paragraph_ids is None:
+            paragraph_ids = [None] * len(paragraph_line_ids)
+        if len(paragraph_ids) != len(paragraph_line_ids):
+            raise ValueError("paragraph_ids must match paragraph_line_ids in length.")
+
+        flattened = [line_id for group in paragraph_line_ids for line_id in group]
+        if len(flattened) != len(set(flattened)):
+            raise ValueError("A line cannot occur in more than one paragraph.")
+        if set(flattened) != set(self.lines):
+            raise ValueError(
+                "Explicit layout must contain every OCRPage line exactly once."
+            )
+
+        self.paragraphs = []
+        for index, (region_line_ids, paragraph_id) in enumerate(
+            zip(paragraph_line_ids, paragraph_ids, strict=True)
+        ):
+            if not region_line_ids:
+                raise ValueError("Explicit paragraphs cannot be empty.")
+            self.paragraphs.append(
+                OCRParagraph(
+                    lines=[self.lines[line_id] for line_id in region_line_ids],
+                    page_id=self.page_id,
+                    subgraph=subdictionary(region_line_ids, self.graph),
+                    id=paragraph_id or f"region_{index}",
+                    index=index,
+                    preserve_order=True,
+                )
+            )
 
     def _set_indices_and_transcription(self) -> None:
         """Set paragraph/line indices and assemble the page transcription."""
@@ -282,31 +363,23 @@ class OCRPage:
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
             for line in paragraph.lines:
-                line.index = sindex
+                line.sindex = sindex
                 sindex += len(line.text) + len(self.line_separator)
-        lines = sorted(
-            list(self.lines.values()), key=lambda line: line.index
-        )  # ty: ignore[no-matching-overload]
+        lines = sorted(list(self.lines.values()), key=lambda line: line.sindex)  # ty: ignore[no-matching-overload]
         self.full_transcription = self.line_separator.join(line.text for line in lines)
 
     def __repr__(self):
-        pageif = (
-            f"(page {self.page})" if self.page is not None else "(unknown page name)"
-        )
-        return (
-            f"<OCRPage: task {self.task_id} {pageif} | order {self.order} | completer {self.completer} |"
-            f" updater {self.updater}.>"
-        )
+        return f"<OCRPage {self.page_id!r} with {self.order} lines>"
 
     def synthetic_starting_index(
         self, line_ids: set[str] | list[str] | Literal["all"]
     ) -> int:
-        if None in set(self.lines[line_id].index for line_id in line_ids):
+        if None in set(self.lines[line_id].sindex for line_id in line_ids):
             raise ValueError(
-                "Cannot compute transcription or sindex for an unordered group of lines."
+                "Cannot compute transcription or sindex for unordered lines."
             )
         starting_index: int = min(
-            self.lines[line_id].index
+            self.lines[line_id].sindex
             for line_id in line_ids  # ty: ignore[invalid-argument-type]
         )
 
@@ -322,10 +395,8 @@ class OCRPage:
             else list(self.lines.values())
         )
 
-        # using .starting_index has the same ordering as the reading order in image_boxes by design
-        lines: list[OCRLine] = sorted(
-            lines, key=lambda x: x.index
-        )  # ty: ignore[no-matching-overload]
+        # sindex follows the preserved or inferred reading order.
+        lines: list[OCRLine] = sorted(lines, key=lambda x: x.sindex)  # ty: ignore[no-matching-overload]
 
         return self.line_separator.join([line.text for line in lines])
 
@@ -351,7 +422,8 @@ class OCRPage:
         else:
             if not (set(margin_size_px.keys()) == {"left", "right", "top", "bottom"}):
                 raise ValueError(
-                    f"margin_size_px must be an int or include each margin (left, right, top, bottom), but got only {margin_size_px.keys()}."
+                    "margin_size_px must be an int or include left, right, top, "
+                    f"and bottom; got {margin_size_px.keys()}."
                 )
         if not all(val >= 0 for val in margin_size_px.values()):
             raise ValueError("The margin size cannot be negative.")
@@ -361,7 +433,8 @@ class OCRPage:
 
         if not isinstance(line_ids, (set, list)):
             raise ValueError(
-                f"line_ids must be a set[str], list[str] or Literal['all'], but got {type(line_ids)}"
+                "line_ids must be a set[str], list[str], or 'all'; got "
+                f"{type(line_ids)}"
             )
         if len(line_ids) != len(set(line_ids)):
             raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
@@ -370,7 +443,7 @@ class OCRPage:
             line_groups = self._group_sorted_by_paragraph(
                 sorted(  # ty: ignore[no-matching-overload]
                     [self.lines[box_id] for box_id in line_ids],
-                    key=lambda line: line.index,
+                    key=lambda line: line.sindex,
                 )
             )
             paragraph_equivalent_pairs = [
@@ -536,7 +609,7 @@ class OCRPage:
     ) -> tuple[np.ndarray, str, int]:
         """
         Given a list of ImageBox ids, returns:
-        - their synthetic manuscript (image as np.ndarray) given by .synthetic_manuscript,
+        - the synthetic manuscript returned by .synthetic_manuscript,
         - the transcription corresponding to this image,
         - the starting index of this text in the page transcription.
         """

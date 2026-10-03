@@ -7,26 +7,33 @@ from shapely import Polygon
 @dataclass(slots=True, kw_only=True)
 class OCRLine:
     """
-    Contains teh information about a single line: the polygon it occupies in the page, its stroke crop and its transcription.
+    A text line and the image/geometry data used by SynthScript.
     """
 
     id: str
     crop: np.ndarray
     polygon: Polygon
     rotation: float
-    task_id: int
+    page_id: str
     text: str
     corrected_centroid: tuple[float, float] | None = None
-    index: int | None = None
+    sindex: int | None = None
     paragraph_index: int | None = None
 
     def __hash__(self):
-        return hash(
-            self.id
-        )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra sino de external_interfaces
+        return hash(self.id)
 
     def __repr__(self):
-        return f"<Line with id {self.id} of task {self.task_id}>"
+        return f"<OCRLine {self.id!r} on page {self.page_id!r}>"
+
+    @property
+    def index(self) -> int | None:
+        """Deprecated alias for the transcription start offset."""
+        return self.sindex
+
+    @index.setter
+    def index(self, value: int | None) -> None:
+        self.sindex = value
 
     def centroid(self) -> tuple[float, float]:
         """Centroid of the associated polygon."""

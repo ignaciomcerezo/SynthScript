@@ -4686,6 +4686,7 @@ source = { editable = "." }
 dependencies = [
     { name = "label-studio-sdk" },
     { name = "levenshtein" },
+    { name = "lxml" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "opencv-python" },
@@ -4744,6 +4745,7 @@ requires-dist = [
     { name = "ipywidgets", marker = "extra == 'train'", specifier = ">=8.1.8" },
     { name = "label-studio-sdk", specifier = ">=2.0.19" },
     { name = "levenshtein", specifier = ">=0.27.3" },
+    { name = "lxml", specifier = ">=6.0.2" },
     { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=2.2.0" },
     { name = "opencv-python" },
