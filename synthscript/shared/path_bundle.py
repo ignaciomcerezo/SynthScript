@@ -11,10 +11,7 @@ _simplified_export_json_filename = "simplified_export.json"
 
 
 class PathBundle:
-    """
-    Class used to store all paths used during the structuring, preprocessing and usage of the OCR
-    dataset.
-    """
+    """Store paths used to build, preprocess, and consume an OCR dataset."""
 
     def __init__(self, root: Path | str | None = None):
         self.root: Path = Path(root) if root else Path(getcwd())
@@ -37,8 +34,8 @@ class PathBundle:
         return self.data_in_path / "images/background/"
 
     @property
-    def transcriptions_path(self) -> Path:
-        return self.data_in_path / "transcriptions/"
+    def page_xml_path(self) -> Path:
+        return self.data_in_path / "page/"
 
     @property
     def exports_path(self) -> Path:
@@ -52,37 +49,15 @@ class PathBundle:
     def simplified_filepath(self) -> Path:
         return self.exports_path / _simplified_export_json_filename
 
-    @property
-    def transcription_path(self) -> Path:
-        return self.data_in_path / "transcriptions/"
-
-    @property
-    def polygons_path(self) -> Path:
-        return self.data_in_path / "polygons/"
-
-    @property
-    def metadata_path(self) -> Path:
-        return self.data_in_path / "metadata/"
-
-    @property
-    def rotations_path(self) -> Path:
-        return self.data_in_path / "rotations/"
-
-    @property
-    def ids_path(self) -> Path:
-        return self.data_in_path / "ids/"
-
     @staticmethod
     def change_image_category_path(
         image_path: Path, destination_category: Literal["raw", "stroke", "background"]
     ) -> Path:
-        """
-        Gets another the corresponding image from a different category. For example, from a background image,
-        with destination_category='raw', gets the corresponding raw image.
-        """
+        """Return the corresponding path in another image category."""
         if destination_category not in ["raw", "background", "stroke"]:
             raise ValueError(
-                f"Image destionation invalid: must be 'raw', 'stroke' or 'background', got {destination_category}"
+                "Image destination must be 'raw', 'stroke', or 'background'; "
+                f"got {destination_category}."
             )
         return (
             image_path.parents[1]
@@ -95,12 +70,8 @@ class PathBundle:
             self.raw_images_path,
             self.stroke_images_path,
             self.background_images_path,
+            self.page_xml_path,
             self.exports_path,
-            self.ids_path,
-            self.rotations_path,
-            self.transcription_path,
-            self.polygons_path,
-            self.metadata_path,
             self.data_in_path,
         ]
 
@@ -115,15 +86,15 @@ class PathBundle:
             for path in self.all_dirs():
                 assert isinstance(path, Path)
                 path.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
+        except PermissionError as exc:
             raise PermissionError(
-                "Error creating the folders. Check the project root is correct and sufficient permissions have been granted."
+                "Error creating the folders. Check the project root and permissions."
                 f"\nRoot folder: {self.root}"
-            )
+            ) from exc
         except Exception as e:
             raise Exception(
-                f"Unexpected exception encountered while creating PathBundle's folders: {e}"
-            )
+                f"Unexpected exception while creating PathBundle folders: {e}"
+            ) from e
 
     def remove_all_files(self) -> None:
         """
@@ -154,7 +125,8 @@ class PathBundle:
                 path = self.get_background_image_path(page_name)
             case _:
                 raise ValueError(
-                    f"Unrecognised {image_folder=}. Only raw, stroke and background are accepted"
+                    f"Unrecognised {image_folder=}; expected raw, stroke, "
+                    "or background."
                 )
 
         if path.exists():
@@ -179,6 +151,13 @@ class PathBundle:
         self, page_name: str | int, suffix: str = ".png"
     ) -> Path:
         return self.background_images_path / (str(page_name) + suffix)
+
+    def get_page_xml_path(
+        self,
+        page_name: str | int,
+        subindex: int = 0,
+    ) -> Path:
+        return self.page_xml_path / f"s{subindex}_pg{page_name}.xml"
 
     @staticmethod
     def load_image_grayscale_np(path: Path) -> np.ndarray:

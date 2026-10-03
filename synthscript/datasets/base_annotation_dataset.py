@@ -91,12 +91,12 @@ class BaseAnnotationDataset(Dataset, ABC):
             self._image_transforms.rng = self._rng
 
     @property
-    def pages(self) -> list[str | None]:
-        return [ann.page for ann in self._annotated_pages]
+    def pages(self) -> list[str]:
+        return [ann.page_id for ann in self._annotated_pages]
 
     @property
-    def ids(self) -> list[int]:
-        return [ann.task_id for ann in self._annotated_pages]
+    def ids(self) -> list[str]:
+        return [ann.page_id for ann in self._annotated_pages]
 
     @property
     def orders(self):
@@ -223,7 +223,9 @@ class BaseAnnotationDataset(Dataset, ABC):
     def __len__(self) -> int:
         return self._size
 
-    def _gets_ann_ids_order_and_identifier(self, index: int) -> tuple[
+    def _gets_ann_ids_order_and_identifier(
+        self, index: int
+    ) -> tuple[
         OCRPage,
         Sequence[str],
         int | Literal["paragraph", "page"],

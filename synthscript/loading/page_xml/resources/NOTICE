@@ -1,0 +1,7 @@
+The bundled pagecontent.xsd was obtained from the PRImA Research Lab PAGE-XML
+repository at:
+
+https://github.com/PRImA-Research-Lab/PAGE-XML
+
+The upstream repository declares the Apache License 2.0. The schema is bundled
+unchanged so SynthScript can validate PAGE-XML 2024-07-15 documents offline.

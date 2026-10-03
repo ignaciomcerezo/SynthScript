@@ -42,5 +42,5 @@ def setup(
             )
         parts.update(pm_1)
 
-    for ext_int_1 in external_interfaces:
-        ext_int_1.setup(paths)
+    for ext_int in external_interfaces:
+        ext_int.setup(paths)

@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy>=2.2.0",
     "label-studio-sdk>=2.0.19",
+    "lxml>=6.0.2",
     "pydantic>=2.10.0,<2.12.4",
     "python-dotenv>=1.2.2",
     "requests>=2.32.5",
@@ -57,6 +58,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["synthscript*"]
+
+[tool.setuptools.package-data]
+"synthscript.loading.page_xml" = ["resources/*.xsd", "resources/NOTICE"]
 
 [tool.uv.workspace]
 members = [

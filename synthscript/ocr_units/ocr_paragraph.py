@@ -13,9 +13,10 @@ class OCRParagraph:
         "_index",
         "avg_rotation",
         "centroid",
+        "id",
         "line_ids",
         "lines",
-        "task_id",
+        "page_id",
         "total_words",
     )
 
@@ -23,9 +24,11 @@ class OCRParagraph:
         self,
         *,
         lines: list[OCRLine],
-        task_id: int,
+        page_id: str,
         subgraph: dict[str, set[str]],
+        id: str | None = None,
         index: int | None = None,
+        preserve_order: bool = False,
     ):
 
         if not lines:
@@ -38,12 +41,14 @@ class OCRParagraph:
             )
 
         self.lines = lines
-        self.task_id: int | None = task_id
+        self.page_id = page_id
+        self.id = id
         self._index: int | None = index
 
         self._set_geometric_and_topological_properties(subgraph)
 
-        self._sort_lines_using_centroid_and_subgraph(subgraph)
+        if not preserve_order:
+            self._sort_lines_using_centroid_and_subgraph(subgraph)
 
         self.line_ids = [line.id for line in self.lines]
 
@@ -66,8 +71,7 @@ class OCRParagraph:
             line.paragraph_index = value
 
     def __iter__(self) -> Iterator[OCRLine]:
-        for x in self.lines:
-            yield x
+        yield from self.lines
 
     def __getitem__(self, index) -> OCRLine:
         return self.lines[index]
@@ -85,7 +89,10 @@ class OCRParagraph:
         return len(self.line_ids)
 
     def __repr__(self):
-        return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
+        return (
+            f"<OCRParagraph {self.id!r} at index {self.index} "
+            f"with {len(self)} lines on page {self.page_id!r}>"
+        )
 
     @property
     def top(self) -> float:
@@ -117,8 +124,6 @@ class OCRParagraph:
 
             self.centroid += np.array(line.centroid()) * area
             total_area += area
-
-        assert self.total_words > 0, "Se ha pasado un párrafo sin palabras."
 
         self.centroid /= total_area
 
@@ -153,9 +158,8 @@ class OCRParagraph:
                 corrected_y,
             )
 
-        if not is_path_graph(
-            subgraph
-        ):  # if it is not a path graph, we use the reading order given by the projections
+        # Non-path graphs use the reading order given by centroid projections.
+        if not is_path_graph(subgraph):
             self.lines = sorted(
                 self.lines,
                 key=lambda line: (

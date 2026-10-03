@@ -1,17 +1,25 @@
-import functools
-import json
-import operator
 from collections import defaultdict
 from collections.abc import Callable, Collection
 from pathlib import Path
 
 from tqdm.auto import tqdm
 
-from synthscript.loading.page_metadata import PageSampleMetadata
+from synthscript.loading.page_xml import load_page_xml
+from synthscript.loading.page_xml.constants import LABEL_STUDIO_TASK_ID
 from synthscript.metric.homogenizer.ast_homogenizer import ASTHomogenizer
 from synthscript.metric.homogenizer.homogenizer import TextHomogenizer
 from synthscript.ocr_units.ocr_page import OCRPage
 from synthscript.shared.path_bundle import PathBundle
+
+
+def _label_studio_task_id(page: OCRPage) -> int | None:
+    raw_value = page.metadata.get(LABEL_STUDIO_TASK_ID)
+    if raw_value is None:
+        return None
+    try:
+        return int(raw_value)
+    except ValueError:
+        return None
 
 
 def load_pages(
@@ -23,110 +31,46 @@ def load_pages(
     length: int | None = None,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
 ) -> list[OCRPage]:
-    """
-    Loads the pages using a PathBundle. If none is provided, supposes the paths
-    have been set up in the current working directory.
-    Uses the information stored in paths.metadata_path to access the appropriate
-    images, transcriptions, polygons, ids and rotations and creates OCRPage
-    instances.
-    """
-
+    """Load PAGE-XML annotations from disk into OCRPage objects."""
     paths = (
         PathBundle(root_path) if not isinstance(root_path, PathBundle) else root_path
     )
-
-    tasks: set[int] | None = (
-        set([task for task in tasks]) if isinstance(tasks, Collection) else None
+    wanted_tasks = set(tasks) if tasks is not None else None
+    wanted_pages = {str(page) for page in pages} if pages is not None else None
+    homogenizer = (
+        ASTHomogenizer()
+        if transcription_homogenizer is None
+        else transcription_homogenizer
     )
-    pages: set[str] | None = (
-        set([str(page) for page in pages]) if isinstance(pages, Collection) else None
-    )
 
-    def _acceptable(page, task_id):
-        if (pages is None) and (tasks is None):
+    def acceptable(page: OCRPage) -> bool:
+        matches_page = wanted_pages is not None and page.page_id in wanted_pages
+        task_id = _label_studio_task_id(page)
+        matches_task = wanted_tasks is not None and task_id in wanted_tasks
+        if wanted_pages is None and wanted_tasks is None:
             return True
-        if tasks is None:
-            return page in pages  # ty: ignore[unsupported-operator]
-        if pages is None:
-            return task_id in tasks
+        return matches_page or matches_task
 
-        return (task_id in tasks) or (page in pages)
-
-    taskid2annpage: dict[int, list[OCRPage]] = defaultdict(lambda: list())
-
-    k = 0
-    for metadata_filepath in tqdm(
-        list(Path(paths.metadata_path).iterdir()),
-        desc="Building OCRPage objects from disk...",
-    ):
-        if length is not None and k > length:
+    pages_by_id: dict[str, list[OCRPage]] = defaultdict(list)
+    accepted_count = 0
+    xml_paths = sorted(paths.page_xml_path.glob("*.xml"))
+    for xml_path in tqdm(xml_paths, desc="Building OCRPage objects from PAGE-XML..."):
+        if length is not None and accepted_count >= length:
             break
-        metadata = PageSampleMetadata.model_validate(
-            json.loads(metadata_filepath.read_text())
+        page = load_page_xml(
+            xml_path,
+            paths,
+            transcription_homogenizer=homogenizer,
         )
-
-        page = metadata.page
-        task_id = metadata.task_id
-
-        if not _acceptable(page, task_id):
-            # print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
+        if not acceptable(page):
             continue
+        pages_by_id[page.page_id].append(page)
+        accepted_count += 1
 
-        completer: str = metadata.completer
-        updater: str = metadata.updater
-        # subindex: int = metadata_content["subindex"]
-        # ann_id  = metadata_content["ann_id"]
-        # order = metadata_content["order"]
-
-        polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
-
-        transcriptions = metadata.load_transcriptions()
-
-        if transcription_homogenizer is None:
-            print(
-                "No transcription homogenizer was provided to load_pages(...). "
-                "Using default ASTHomogenizer."
-            )
-            transcription_homogenizer = ASTHomogenizer()
-
-        transcriptions = [
-            transcription_homogenizer(transcription) for transcription in transcriptions
-        ]
-
-        polygon_coords = metadata.load_polygon_coords()
-        rotations = metadata.load_rotations()
-        ids = metadata.load_ids()
-        image_path = metadata.image_path
-
-        stroke = paths.load_stroke_image(image_path.stem)
-        background = paths.load_background_image(image_path.stem)
-
-        if (stroke is None) or (background is None):
-            raise ValueError(
-                f"Stroke or background images could not be loaded for task {task_id}/page {page}:\n"
-                f"background: {paths.get_background_image_path(image_path.stem)}\n"
-                f"stroke: {paths.get_stroke_image_path(image_path.stem)}"
-            )
-
-        taskid2annpage[task_id].append(
-            OCRPage(
-                transcriptions=transcriptions,
-                polygon_coords=polygon_coords,
-                line_ids=ids,
-                rotations=rotations,
-                task_id=int(task_id),
-                page=page,
-                stroke=stroke,
-                background=background,
-                completer=completer,
-                updater=updater,
-                polygons_are_in_percentage=polygons_are_in_percentage,
-            )
-        )
-        k += 1
-
-    if combine_same_page_annotations:
-        for page, annotations in taskid2annpage.items():
-            taskid2annpage[page] = [OCRPage.combine_annotations(*annotations)]
-
-    return functools.reduce(operator.iadd, taskid2annpage.values(), [])
+    result: list[OCRPage] = []
+    for annotations in pages_by_id.values():
+        if combine_same_page_annotations:
+            result.append(OCRPage.combine_annotations(*annotations))
+        else:
+            result.extend(annotations)
+    return result

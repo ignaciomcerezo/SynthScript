@@ -3,40 +3,27 @@ from typing import Literal
 
 from synthscript.shared.path_bundle import PathBundle
 
-_PARTS = set[
-    Literal[
-        "raw_images",
-        "background_images",
-        "stroke_images",
-        "metadata",
-        "polygons",
-        "rotations",
-        "transcriptions",
-    ]
+Part = Literal[
+    "raw_images",
+    "background_images",
+    "stroke_images",
+    "annotations",
 ]
+_PARTS = set[Part]
 
 
 class ExternalInterface(ABC):
-
     @abstractmethod
     def setup(self, paths: PathBundle) -> None:
-        """
-        Completes the setup related to this external interface's managed data in's parts.
-        They are created with the .setup() method.
-        """
+        """Create or update the data parts managed by this interface."""
         raise NotImplementedError
 
     @abstractmethod
     def parts_required(self) -> _PARTS:
-        """
-        Returns whose parts of the data_in are required by this external interface's to do its job.
-        """
+        """Return the data parts that must already exist."""
         raise NotImplementedError
 
     @abstractmethod
     def parts_managed(self) -> _PARTS:
-        """
-        Returns whose parts of the data_in are created and managed by this external interface's.
-        They are created with .setup().
-        """
+        """Return the data parts created and managed by this interface."""
         raise NotImplementedError

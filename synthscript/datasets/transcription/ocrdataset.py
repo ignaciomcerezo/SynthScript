@@ -130,7 +130,7 @@ class OCRDataset(BaseAnnotationDataset):
             "context": context,
             "order": order,
             "id": identifier,
-            "page_id": ann.task_id,
+            "page_id": ann.page_id,
         }
 
         return sample

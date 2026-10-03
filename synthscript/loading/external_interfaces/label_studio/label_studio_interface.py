@@ -1,25 +1,42 @@
-import json
 import os
 from pathlib import Path
 from urllib.parse import unquote as url_unquote
 
 from label_studio_sdk import Client
+from shapely import make_valid
 from shapely.geometry import Polygon
 
-from synthscript.loading.external_interfaces.external_interface import ExternalInterface
-from synthscript.loading.external_interfaces.label_studio.helpers.json_conversor import (
+from synthscript.loading.page_xml import save_page_xml
+from synthscript.loading.page_xml.constants import (
+    LABEL_STUDIO_ANNOTATION_ID,
+    LABEL_STUDIO_COMPLETER,
+    LABEL_STUDIO_CREATED_AT,
+    LABEL_STUDIO_GROUND_TRUTH,
+    LABEL_STUDIO_LEAD_TIME,
+    LABEL_STUDIO_PROJECT,
+    LABEL_STUDIO_TASK_ID,
+    LABEL_STUDIO_UNIQUE_ID,
+    LABEL_STUDIO_UPDATED_AT,
+    LABEL_STUDIO_UPDATER,
+    SYNTHSCRIPT_SOURCE,
+    SYNTHSCRIPT_SUBINDEX,
+)
+from synthscript.ocr_units import OCRPage
+from synthscript.shared.geometry_processing import calculate_reading_angle
+from synthscript.shared.path_bundle import PathBundle
+
+from ..external_interface import ExternalInterface
+from .helpers.json_conversor import (
     extract_bounds,
     pair_lines,
 )
-from synthscript.loading.external_interfaces.label_studio.helpers.simplify_export import (
+from .helpers.simplify_export import (
     simplify_tasks,
 )
-from synthscript.loading.external_interfaces.label_studio.ls_typed_dicts import (
+from .ls_typed_dicts import (
     RectangleResult,
     SimplifiedTask,
 )
-from synthscript.shared.geometry_processing import calculate_reading_angle
-from synthscript.shared.path_bundle import PathBundle
 
 
 class _LSUsersManager:
@@ -146,19 +163,17 @@ class LabelStudioInterface(ExternalInterface):
         return self._usernames
 
     def parts_managed(self):
-        return {"metadata", "rotations"}
+        return {"annotations"}
 
     def parts_required(self):
-        return {"background_images", "stroke_images"}
+        return {"raw_images", "background_images", "stroke_images"}
 
     def setup(self, paths: PathBundle) -> None:
-        """Fetches remote annotations and writes individual transcription,
-
-        polygon, rotation, id, and metadata files.
-        """
+        """Fetch Label Studio annotations and write canonical PAGE-XML."""
         if not self.online:
             print(
-                f"LSI configured with online={self.online}; keeping local generated data."
+                f"LSI configured with online={self.online}; "
+                "keeping local generated data."
             )
             return
 
@@ -168,6 +183,17 @@ class LabelStudioInterface(ExternalInterface):
             image_url = task.data.image_url
             task_id = task.id
             page = Path(url_unquote(image_url)).stem
+            raw_image_path = paths.get_raw_image_path(page)
+            stroke_image_path = paths.get_stroke_image_path(page)
+            background_image_path = paths.get_background_image_path(page)
+            stroke = paths.load_stroke_image(page)
+            background = paths.load_background_image(page)
+            if stroke.shape != background.shape:
+                raise ValueError(
+                    f"Stroke and background images for page {page!r} must have "
+                    "identical dimensions."
+                )
+            height, width = stroke.shape[:2]
 
             for subindex, simplified_ann in enumerate(task.annotations):
                 transcriptions: list[str] = []
@@ -199,45 +225,65 @@ class LabelStudioInterface(ExternalInterface):
                     assert len(transcription) == 1
                     transcriptions.append(transcription[0])
 
-                    poly_bounds = extract_bounds(box_result)
-                    assert len(poly_bounds) > 3
-                    poly_coords.append(poly_bounds)
+                    percentage_bounds = extract_bounds(box_result)
+                    assert len(percentage_bounds) > 3
+                    pixel_bounds = [
+                        (
+                            min(max(float(x), 0.0), 100.0) * width / 100.0,
+                            min(max(float(y), 0.0), 100.0) * height / 100.0,
+                        )
+                        for x, y in percentage_bounds
+                    ]
+                    polygon = Polygon(pixel_bounds)
+                    if not polygon.is_valid:
+                        repaired = make_valid(polygon)
+                        polygon = (
+                            repaired
+                            if isinstance(repaired, Polygon)
+                            else repaired.convex_hull
+                        )
+                    if polygon.is_empty or not isinstance(polygon, Polygon):
+                        raise ValueError(
+                            f"Label Studio region {trio[2]!r} has no usable polygon."
+                        )
+                    poly_coords.append(list(polygon.exterior.coords)[:-1])
 
                     ids.append(trio[2])
 
                     if isinstance(box_result, RectangleResult):
                         rotations.append(box_result.value.rotation)
                     else:
-                        rotations.append(calculate_reading_angle(Polygon(poly_bounds)))
-
-                json_name = f"s{subindex}_pg{page}.json"
-
-                transcriptions_filepath = paths.transcription_path / json_name
-                polygons_filepath = paths.polygons_path / json_name
-                rotations_filepath = paths.rotations_path / json_name
-                ids_path = paths.ids_path / json_name
-                image_path = str(paths.raw_images_path / f"{page}.png")
-
-                transcriptions_filepath.write_text(json.dumps(transcriptions))
-                polygons_filepath.write_text(json.dumps(poly_coords))
-                rotations_filepath.write_text(json.dumps(rotations))
-                ids_path.write_text(json.dumps(ids))
+                        rotations.append(calculate_reading_angle(polygon))
 
                 metadata = {
-                    "page": page,
-                    "task_id": task_id,
-                    "completer": completer,
-                    "updater": updater,
-                    "subindex": subindex,
-                    "ann_id": ann_id,
-                    "order": len(trios),
-                    "image_path": image_path,
-                    "ids_path": str(ids_path),
-                    "transcriptions_path": str(transcriptions_filepath),
-                    "polygons_path": str(polygons_filepath),
-                    "rotations_path": str(rotations_filepath),
-                    "polygons_are_in_percentage": True,
-                    "source": "Label Studio",
+                    LABEL_STUDIO_TASK_ID: task_id,
+                    LABEL_STUDIO_COMPLETER: completer,
+                    LABEL_STUDIO_UPDATER: updater,
+                    LABEL_STUDIO_ANNOTATION_ID: ann_id,
+                    LABEL_STUDIO_PROJECT: simplified_ann.project,
+                    LABEL_STUDIO_UNIQUE_ID: simplified_ann.unique_id,
+                    LABEL_STUDIO_GROUND_TRUTH: simplified_ann.ground_truth,
+                    LABEL_STUDIO_CREATED_AT: simplified_ann.created_at,
+                    LABEL_STUDIO_UPDATED_AT: simplified_ann.updated_at,
+                    LABEL_STUDIO_LEAD_TIME: simplified_ann.lead_time,
+                    SYNTHSCRIPT_SUBINDEX: subindex,
+                    SYNTHSCRIPT_SOURCE: "Label Studio",
                 }
-
-                (paths.metadata_path / json_name).write_text(json.dumps(metadata))
+                ocr_page = OCRPage(
+                    transcriptions=transcriptions,
+                    polygon_coords=poly_coords,
+                    line_ids=ids,
+                    rotations=rotations,
+                    page_id=page,
+                    stroke=stroke,
+                    background=background,
+                    metadata={key: str(value) for key, value in metadata.items()},
+                )
+                save_page_xml(
+                    ocr_page,
+                    paths.get_page_xml_path(page, subindex),
+                    raw_image_path=raw_image_path,
+                    stroke_image_path=stroke_image_path,
+                    background_image_path=background_image_path,
+                    metadata=metadata,
+                )
