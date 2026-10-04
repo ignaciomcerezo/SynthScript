@@ -20,8 +20,13 @@ class LatexParser:
     Parse latex code into a canonical AST.
     """
 
-    def __init__(self, config: CanonicalizationConfig | None = None) -> None:
-        self._canonicalizer = LatexCanonicalizer(config)
+    def __init__(
+        self,
+        canonicalization_config: CanonicalizationConfig | None = None,
+        syntax_tolerant: bool = True,
+    ) -> None:
+        self._canonicalizer = LatexCanonicalizer(canonicalization_config)
+        self.syntax_tolerant = syntax_tolerant
         self._latex_context = get_default_latex_context_db()
         self._latex_context.add_context_category(
             "synthscript",
@@ -49,10 +54,12 @@ class LatexParser:
             prepend=True,
         )
 
-    def parse(self, source: str) -> CanonicalNode:
+    def parse(self, source: str, syntax_tolerant: bool | None = None) -> CanonicalNode:
         """Parses a latex string and returns its canonical tree form."""
+        tolerate = (
+            syntax_tolerant if syntax_tolerant is not None else self.syntax_tolerant
+        )
         nodes, _, _ = LatexWalker(
-            source,
-            latex_context=self._latex_context,
+            source, latex_context=self._latex_context, tolerant_parsing=tolerate
         ).get_latex_nodes()
         return self._canonicalizer.canonicalize(nodes)
