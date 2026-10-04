@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from shapely.affinity import translate
 
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
+from synthscript.datasets.ocr_transform_pack import OCRTransformPack, OCRTransformType
 from synthscript.ocr_units import OCRPage
 from synthscript.shared.geometry_processing import get_union_rect
 from synthscript.transforms import (
@@ -12,8 +12,6 @@ from synthscript.transforms import (
     PageTransform,
     ParagraphTransform,
 )
-
-Transform = LineTransform | ParagraphTransform | PageTransform
 
 
 class LayoutGenerator:
@@ -53,7 +51,7 @@ class LayoutGenerator:
 
     def add_transform(
         self,
-        transform: Transform | None,
+        transform: OCRTransformType | None,
         probability: float = 1,
     ) -> None:
         """Append a transform, using the same interface as OCRDataset."""
@@ -62,7 +60,8 @@ class LayoutGenerator:
 
     def set_transform(
         self,
-        *transform_probability_pairs: tuple[Transform | None, float],
+        *transform_probability_pairs: tuple[OCRTransformType | None, float],
+        avoid_intersections: bool = True,
     ) -> None:
         """Replace all transforms, using the same interface as OCRDataset."""
         for transform, _ in transform_probability_pairs:
@@ -76,12 +75,12 @@ class LayoutGenerator:
                 )
 
         self._transforms = OCRTransformPack(
-            avoid_intersections=self._avoid_intersections,
-            rng=self.rng,
+            avoid_intersections=avoid_intersections, rng=self._transforms.rng
         )
+
         for transform, probability in transform_probability_pairs:
-            if probability != 0:
-                self.add_transform(transform, probability)
+            if (probability != 0) and transform is not None:
+                self._transforms.add_transform(transform, probability)
 
     def apply(self, annotation: OCRPage) -> OCRPage:
         """Return a new page made from the transform pack's crops and polygons."""

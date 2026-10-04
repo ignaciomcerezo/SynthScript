@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
 import numpy as np
 
 from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
+from synthscript.datasets.ocr_transform_pack import OCRTransformPack, OCRTransformType
 from synthscript.ocr_units import OCRPage
 from synthscript.transforms.transforms import (
     BackgroundTransform,
@@ -34,7 +34,7 @@ else:
                 raise NotImplementedError
 
 
-DatasetTransform = LineTransform | ParagraphTransform | PageTransform | ImageTransform
+DatasetTransform = OCRTransformType | ImageTransform
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
 RNGInput = np.random.Generator | int | None
@@ -66,11 +66,9 @@ class BaseAnnotationDataset(Dataset, ABC):
     _use_full_pages: bool
     _previous_history: list[CurriculumHistoryEntry]
     _samples_solicited: int
-    _transforms: OCRTransformPack = field(default_factory=lambda: OCRTransformPack())
-    _image_transforms: ImageTransformPack = field(
-        default_factory=lambda: ImageTransformPack()
-    )
-    _cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
+    _transforms: OCRTransformPack
+    _image_transforms: ImageTransformPack
+    _cluster_params: ClusterParams
     _rng: np.random.Generator
 
     @abstractmethod

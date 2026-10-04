@@ -1,5 +1,7 @@
 import functools
 import operator
+from collections.abc import Iterator
+from typing import Generic, TypeVar
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -14,7 +16,18 @@ from synthscript.transforms import (
     ParagraphTransform,
 )
 
-Transform = LineTransform | ParagraphTransform | PageTransform
+OCRTransformType = LineTransform | ParagraphTransform | PageTransform
+T = TypeVar("T", bound=OCRTransformType)
+
+
+class _TransformProbabilityPair(Generic[T]):
+    __slots__ = ("probability", "transform")
+
+    def __init__(self, transform: T, probability: float):
+        if (probability < 0) or (probability > 1):
+            raise ValueError("The given probability must lie between 0 and 1.")
+        self.transform = transform
+        self.probability = probability
 
 
 class OCRTransformPack:
@@ -23,12 +36,10 @@ class OCRTransformPack:
         avoid_intersections: bool = True,
         rng: np.random.Generator | int | None = None,
     ):
-        self._linewise: list[LineTransform] = []
-        self._linewise_prob: list[float] = []
-        self._intra: list[ParagraphTransform] = []
-        self._intra_prob: list[float] = []
-        self._inter: list[PageTransform] = []
-        self._inter_prob: list[float] = []
+        self._line: list[_TransformProbabilityPair[LineTransform]] = []
+        self._paragraph: list[_TransformProbabilityPair[ParagraphTransform]] = []
+        self._page: list[_TransformProbabilityPair[PageTransform]] = []
+
         self.avoid_intersections = avoid_intersections
         self.rng = rng
 
@@ -46,16 +57,25 @@ class OCRTransformPack:
         for transform in self._all_transforms():
             transform.rng = self._rng
 
+    def _all_tp_pairs(
+        self,
+    ) -> Iterator[
+        _TransformProbabilityPair[LineTransform]
+        | _TransformProbabilityPair[ParagraphTransform]
+        | _TransformProbabilityPair[PageTransform]
+    ]:
+        yield from self._line
+        yield from self._paragraph
+        yield from self._page
+
     def _all_transforms(
         self,
-    ) -> list[Transform]:
-        return self._linewise + self._intra + self._inter
+    ) -> list[OCRTransformType]:
+        return [x.transform for x in self._all_tp_pairs()]
 
     @property
     def is_identity(self) -> bool:
-        return (
-            sum(self._intra_prob) + sum(self._inter_prob) + sum(self._linewise_prob)
-        ) == 0
+        return sum(x.probability for x in self._all_tp_pairs()) == 0
 
     @property
     def may_cause_intersections(self) -> bool:
@@ -65,22 +85,17 @@ class OCRTransformPack:
 
     def add_transform(
         self,
-        transform: Transform,
+        transform: OCRTransformType,
         probability: float = 1,
-    ):
+    ) -> None:
         """Append a supported OCR layout transform."""
-        if (probability > 1) or (probability < 0):
-            raise ValueError("probability must be between 0 and 1")
         transform.rng = self._rng
         if isinstance(transform, LineTransform):
-            self._linewise.append(transform)
-            self._linewise_prob.append(probability)
+            self._line.append(_TransformProbabilityPair(transform, probability))
         elif isinstance(transform, ParagraphTransform):
-            self._intra.append(transform)
-            self._intra_prob.append(probability)
+            self._paragraph.append(_TransformProbabilityPair(transform, probability))
         elif isinstance(transform, PageTransform):
-            self._inter.append(transform)
-            self._inter_prob.append(probability)
+            self._page.append(_TransformProbabilityPair(transform, probability))
         else:
             raise ValueError(f"Unsupported OCR transform type {type(transform)}.")
 
@@ -103,12 +118,10 @@ class OCRTransformPack:
             for j in range(len(images)):
                 cur_image = images[j]
                 cur_polygon = polygons[j]
-                for linewise_transform, p in zip(
-                    self._linewise, self._linewise_prob, strict=True
-                ):
-                    if self.should_call(p):
-                        linewise_transform.rng = self._rng
-                        cur_image, cur_polygon = linewise_transform(
+                for pair in self._line:
+                    if self.should_call(pair.probability):
+                        pair.transform.rng = self._rng
+                        cur_image, cur_polygon = pair.transform(
                             cur_image, cur_polygon
                         )
                 images[j] = cur_image
@@ -117,21 +130,19 @@ class OCRTransformPack:
             current_paragraph = (images, polygons)
 
             # Process paragraph-level transforms
-            for intraparagraph_transform, p in zip(
-                self._intra, self._intra_prob, strict=True
-            ):
-                if self.should_call(p):
-                    intraparagraph_transform.rng = self._rng
-                    current_paragraph = intraparagraph_transform(current_paragraph)
+            for pair in self._paragraph:
+                if self.should_call(pair.probability):
+                    pair.transform.rng = self._rng
+                    current_paragraph = pair.transform(current_paragraph)
 
             paragraph_eq_list[i] = current_paragraph
 
         # Process interparagraph transforms
-        for interparagraph, p in zip(self._inter, self._inter_prob, strict=True):
-            if self.should_call(p):
-                interparagraph.rng = self._rng
+        for pair in self._page:
+            if self.should_call(pair.probability):
+                pair.transform.rng = self._rng
                 paragraph_eq_list = list(
-                    zip(*interparagraph(paragraph_eq_list), strict=True)
+                    zip(*pair.transform(paragraph_eq_list), strict=True)
                 )
 
         polys_by_par = [
