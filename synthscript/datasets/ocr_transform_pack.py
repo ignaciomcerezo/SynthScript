@@ -121,9 +121,7 @@ class OCRTransformPack:
                 for pair in self._line:
                     if self.should_call(pair.probability):
                         pair.transform.rng = self._rng
-                        cur_image, cur_polygon = pair.transform(
-                            cur_image, cur_polygon
-                        )
+                        cur_image, cur_polygon = pair.transform(cur_image, cur_polygon)
                 images[j] = cur_image
                 polygons[j] = cur_polygon
 
