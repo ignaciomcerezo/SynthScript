@@ -69,11 +69,6 @@ text, reading order, orientation, and provenance for one annotation. Persisted
 coordinates are absolute integer pixels. Text homogenization is applied only
 while loading a dataset and never overwrites the PAGE ground truth.
 
-Existing five-JSON manifests can be converted once with
-`migrate_legacy_manifest(root_path)`. The converter validates and reloads every
-generated PAGE file before reporting success; legacy directories are retained
-unless `delete_legacy=True` is explicitly requested.
-
 ## Intended use
 
 The package is intended for OCR training workflows where:
