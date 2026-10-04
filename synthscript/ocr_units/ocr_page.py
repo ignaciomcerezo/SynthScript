@@ -1,33 +1,22 @@
 import json
 import math
-from collections.abc import Callable
 from copy import deepcopy
 from typing import Literal
 
-import cv2
 import numpy as np
-from shapely.affinity import translate
 from shapely.geometry import Polygon
 
 from synthscript.ocr_units.ocr_line import OCRLine
 from synthscript.ocr_units.ocr_paragraph import OCRParagraph
-from synthscript.shared.geometry_processing import get_union_rect
+from synthscript.ocr_units.rendering import CollageArtist
 from synthscript.shared.graph_utilities import (
     get_connected_components,
     subdictionary,
 )
 from synthscript.shared.image_processing import (
     crop_image_with_polygon,
-    crop_or_resize,
     to_grayscale,
 )
-
-ocr_transform = Callable[
-    [list[tuple[list[np.ndarray], list[Polygon]]]],
-    tuple[list[np.ndarray], list[Polygon]],
-]
-StrokeTransformCallable = Callable[[list[np.ndarray]], list[np.ndarray]]
-ImageTransformCallable = Callable[[np.ndarray], np.ndarray]
 
 
 class OCRPage:
@@ -365,7 +354,9 @@ class OCRPage:
             for line in paragraph.lines:
                 line.sindex = sindex
                 sindex += len(line.text) + len(self.line_separator)
-        lines = sorted(list(self.lines.values()), key=lambda line: line.sindex)  # ty: ignore[no-matching-overload]
+        lines = sorted(
+            list(self.lines.values()), key=lambda line: line.sindex
+        )  # ty: ignore[no-matching-overload]
         self.full_transcription = self.line_separator.join(line.text for line in lines)
 
     def __repr__(self):
@@ -379,8 +370,8 @@ class OCRPage:
                 "Cannot compute transcription or sindex for unordered lines."
             )
         starting_index: int = min(
-            self.lines[line_id].sindex
-            for line_id in line_ids  # ty: ignore[invalid-argument-type]
+            value.sindex  # ty: ignore[invalid-argument-type]
+            for value in self.lines.values()
         )
 
         return starting_index
@@ -396,7 +387,9 @@ class OCRPage:
         )
 
         # sindex follows the preserved or inferred reading order.
-        lines: list[OCRLine] = sorted(lines, key=lambda x: x.sindex)  # ty: ignore[no-matching-overload]
+        lines: list[OCRLine] = sorted(
+            lines, key=lambda x: x.sindex
+        )  # ty: ignore[no-matching-overload]
 
         return self.line_separator.join([line.text for line in lines])
 
@@ -404,29 +397,9 @@ class OCRPage:
         self,
         line_ids: set[str] | list[str] | Literal["all"],
         *,
-        tight_layout: bool = True,
-        margin_size_px: int | dict[Literal["left", "right", "top", "bottom"], int] = 0,
-        img_poly_transform: ocr_transform | None = None,
-        stroke_transform: StrokeTransformCallable | None = None,
-        background_transform: ImageTransformCallable | None = None,
-        global_image_transform: ImageTransformCallable | None = None,
-        refit_polygons: bool = True,
-        overlay_polygons: bool = False,
-        overlay_mbr: bool = False,
+        collage_artist: CollageArtist | None = None,
     ) -> tuple[np.ndarray, list[Polygon]]:
-
-        if isinstance(margin_size_px, int):
-            margin_size_px = {
-                x: margin_size_px for x in ["left", "right", "top", "bottom"]
-            }
-        else:
-            if not (set(margin_size_px.keys()) == {"left", "right", "top", "bottom"}):
-                raise ValueError(
-                    "margin_size_px must be an int or include left, right, top, "
-                    f"and bottom; got {margin_size_px.keys()}."
-                )
-        if not all(val >= 0 for val in margin_size_px.values()):
-            raise ValueError("The margin size cannot be negative.")
+        collage_artist = CollageArtist() if collage_artist is None else collage_artist
 
         if line_ids == "all":
             line_ids = set(self.lines.keys())
@@ -439,173 +412,19 @@ class OCRPage:
         if len(line_ids) != len(set(line_ids)):
             raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
 
-        if img_poly_transform is not None:
-            line_groups = self._group_sorted_by_paragraph(
-                sorted(  # ty: ignore[no-matching-overload]
-                    [self.lines[box_id] for box_id in line_ids],
-                    key=lambda line: line.sindex,
-                )
-            )
-            paragraph_equivalent_pairs = [
-                (
-                    [line.crop for line in line_group],
-                    [line.polygon for line in line_group],
-                )
-                for line_group in line_groups
-            ]
-            crops, polygons = img_poly_transform(paragraph_equivalent_pairs)
-        else:
-            polygons = [self.lines[line_id].polygon for line_id in line_ids]
-            crops = [self.lines[line_id].crop for line_id in line_ids]
+        lines = {self.lines[line_id] for line_id in line_ids}
 
-        if stroke_transform is not None:
-            crops = stroke_transform(crops)
-
-        min_x, min_y, max_x, max_y = get_union_rect(polygons)
-        bg_h, bg_w = self.image_dimensions
-
-        if tight_layout:
-            x0 = int(min_x) - margin_size_px["left"]
-            xf = int(max_x) + 1 + margin_size_px["right"]
-            y0 = int(min_y) - margin_size_px["top"]
-            yf = int(max_y) + 1 + margin_size_px["bottom"]
-            can_crop = True
-        else:
-            x0 = min(0, int(min_x) - margin_size_px["left"])
-            xf = max(bg_w, int(max_x) + 1 + margin_size_px["right"])
-            y0 = min(0, int(min_y) - margin_size_px["top"])
-            yf = max(bg_h, int(max_y) + 1 + margin_size_px["bottom"])
-            can_crop = False
-
-        bg_np = np.asarray(self.background)
-        canvas = crop_or_resize(
-            bg_np, x0=x0, xf=xf, y0=y0, yf=yf, can_crop=can_crop
-        ).copy()
-        if background_transform is not None:
-            canvas = background_transform(canvas)
-
-        canvas_h, canvas_w = canvas.shape[:2]
-        for stroke_img, polygon in zip(crops, polygons, strict=True):
-            poly_x0, poly_y0, _, _ = polygon.bounds
-
-            paste_x = int(poly_x0 - x0)
-            paste_y = int(poly_y0 - y0)
-
-            sh, sw = stroke_img.shape[:2]
-
-            src_x0 = max(0, -paste_x)
-            src_y0 = max(0, -paste_y)
-            src_x1 = min(sw, canvas_w - paste_x)
-            src_y1 = min(sh, canvas_h - paste_y)
-
-            dst_x0 = max(0, paste_x)
-            dst_y0 = max(0, paste_y)
-            dst_x1 = min(canvas_w, paste_x + sw)
-            dst_y1 = min(canvas_h, paste_y + sh)
-
-            if dst_x1 <= dst_x0 or dst_y1 <= dst_y0:
-                continue
-
-            stroke_crop = stroke_img[src_y0:src_y1, src_x0:src_x1]
-            if stroke_crop.ndim == 2:
-                stroke_bgra = cv2.cvtColor(stroke_crop, cv2.COLOR_GRAY2BGRA)
-            elif stroke_crop.ndim == 3 and stroke_crop.shape[2] == 4:
-                stroke_bgra = stroke_crop
-            else:
-                raise ValueError(
-                    "Transformed stroke crops must be grayscale or BGRA; "
-                    f"got {stroke_crop.shape}."
-                )
-
-            stroke_value = stroke_bgra[..., 0].astype(np.float32)
-            alpha = stroke_bgra[..., 3].astype(np.float32) / 255.0
-            masked_stroke = stroke_value * alpha
-
-            # Perform the blend strictly on the slice
-            roi = canvas[dst_y0:dst_y1, dst_x0:dst_x1].astype(np.float32)
-            blended_roi = np.clip(roi - masked_stroke, 0, 255)
-
-            canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
-
-        if global_image_transform is not None:
-            canvas = global_image_transform(canvas)
-
-        if refit_polygons:
-            # displace the polygons to the new dimensions of the image
-            polygons = [translate(polygon, -x0, -y0) for polygon in polygons]
-
-        if overlay_mbr or overlay_polygons:
-            canvas = self._overlay_polygons_mbr(
-                refitted_polygons=(
-                    polygons
-                    if refit_polygons
-                    else [translate(polygon, -x0, -y0) for polygon in polygons]
-                ),
-                manuscript=canvas,
-                overlay_polygons=overlay_polygons,
-                overlay_mbr=overlay_mbr,
-            )
-
-        return canvas, polygons
-
-    def _group_sorted_by_paragraph(self, lines: list[OCRLine]) -> list[list[OCRLine]]:
-        """
-        Groups lines by paragraph, assuming they are sorted by paragraph.
-        """
-
-        line_groups: list[list[OCRLine]] = []
-        last_paragraph = None
-        group = []
-
-        for line in lines:
-            if line.paragraph_index != last_paragraph:
-                line_groups.append(group)
-                group = []
-            group.append(line)
-            last_paragraph = line.paragraph_index
-
-        line_groups.append(group)
-        return [group for group in line_groups if group]
-
-    @staticmethod
-    def _overlay_polygons_mbr(
-        *,
-        refitted_polygons: list[Polygon],
-        manuscript: np.ndarray,
-        overlay_polygons: bool,
-        overlay_mbr: bool,
-    ):
-        img = cv2.cvtColor(manuscript, cv2.COLOR_GRAY2BGR)
-
-        for polygon in refitted_polygons:
-            if overlay_polygons:
-                poly_pts = np.round(polygon.exterior.coords).astype(np.int32)
-                cv2.polylines(
-                    img, [poly_pts], isClosed=True, color=(0, 0, 255), thickness=3
-                )
-
-            if overlay_mbr:
-                mbr_pts = np.round(
-                    polygon.minimum_rotated_rectangle.exterior.coords
-                ).astype(np.int32)
-                cv2.polylines(
-                    img, [mbr_pts], isClosed=True, color=(0, 255, 0), thickness=3
-                )
-
-        return img
+        return collage_artist.compose(
+            lines,
+            self.image_dimensions,
+            self.background,
+        )
 
     def synthetic_sample(
         self,
         line_ids: list["str"] | Literal["all"],
         *,
-        tight_layout: bool = True,
-        margin_size_px: int | dict[Literal["right", "left", "top", "bottom"], int] = 0,
-        img_poly_transform: ocr_transform | None = None,
-        stroke_transform: StrokeTransformCallable | None = None,
-        background_transform: ImageTransformCallable | None = None,
-        global_image_transform: ImageTransformCallable | None = None,
-        overlay_polygons: bool = False,
-        overlay_mbr: bool = True,
+        collage_artist: CollageArtist | None = None,
     ) -> tuple[np.ndarray, str, int]:
         """
         Given a list of ImageBox ids, returns:
@@ -619,17 +438,9 @@ class OCRPage:
         elif line_ids == "all":
             line_ids = list(self.lines.keys())
 
-        manuscript = self.synthetic_manuscript(
-            line_ids,
-            tight_layout=tight_layout,
-            margin_size_px=margin_size_px,
-            img_poly_transform=img_poly_transform,
-            stroke_transform=stroke_transform,
-            background_transform=background_transform,
-            global_image_transform=global_image_transform,
-            overlay_polygons=overlay_polygons,
-            overlay_mbr=overlay_mbr,
-        )[0]
+        manuscript = self.synthetic_manuscript(line_ids, collage_artist=collage_artist)[
+            0
+        ]
 
         transcription = self.synthetic_transcription(line_ids)
         starting_index = self.synthetic_starting_index(line_ids)

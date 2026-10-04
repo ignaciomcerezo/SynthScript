@@ -54,6 +54,7 @@ class SegmentationDataset(BaseAnnotationDataset):
             else ClusterParams()
         )
         self._transforms.avoid_intersections = self._cluster_params.avoid_intersections
+        self._sync_renderer()
 
     def __repr__(self):
         return (
@@ -75,14 +76,7 @@ class SegmentationDataset(BaseAnnotationDataset):
 
         image, polygons = ann.synthetic_manuscript(
             line_ids=list(selected_line_ids),
-            tight_layout=self.cluster_params.tight_layout,
-            margin_size_px=self.cluster_params.margin_size_px,
-            img_poly_transform=self._transforms,
-            stroke_transform=self._image_transforms.transform_strokes,
-            background_transform=self._image_transforms.transform_background,
-            global_image_transform=self._image_transforms.transform_global_image,
-            overlay_polygons=self.cluster_params.overlay_polygons,
-            overlay_mbr=self.cluster_params.overlay_mbr,
+            collage_artist=self.renderer,
         )
         if not self.return_bounding_boxes:
             return image, polygons

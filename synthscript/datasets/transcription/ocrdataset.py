@@ -72,6 +72,7 @@ class OCRDataset(BaseAnnotationDataset):
             rng=self.rng,
         )
         self._image_transforms = ImageTransformPack(rng=self.rng)
+        self._sync_renderer()
 
     def __repr__(self):
         return (
@@ -111,14 +112,7 @@ class OCRDataset(BaseAnnotationDataset):
 
         synthetic_img, synthetic_transcription, sindex = ann.synthetic_sample(
             list(selected_line_ids),
-            tight_layout=self.cluster_params.tight_layout,
-            margin_size_px=self.cluster_params.margin_size_px,
-            img_poly_transform=self._transforms,
-            stroke_transform=self._image_transforms.transform_strokes,
-            background_transform=self._image_transforms.transform_background,
-            global_image_transform=self._image_transforms.transform_global_image,
-            overlay_polygons=self.cluster_params.overlay_polygons,
-            overlay_mbr=self.cluster_params.overlay_mbr,
+            collage_artist=self.renderer,
         )
 
         # TODO: improve context generation - implement the use_previous_page_in_context

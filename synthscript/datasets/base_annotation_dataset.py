@@ -8,6 +8,7 @@ import numpy as np
 from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
 from synthscript.datasets.ocr_transform_pack import OCRTransformPack, OCRTransformType
 from synthscript.ocr_units import OCRPage
+from synthscript.ocr_units.rendering import CollageArtist
 from synthscript.transforms.transforms import (
     BackgroundTransform,
     GlobalImageTransform,
@@ -69,6 +70,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     _transforms: OCRTransformPack
     _image_transforms: ImageTransformPack
     _cluster_params: ClusterParams
+    _renderer: CollageArtist
     _rng: np.random.Generator
 
     @abstractmethod
@@ -142,6 +144,36 @@ class BaseAnnotationDataset(Dataset, ABC):
     def cluster_params(self, value: ClusterParams) -> None:
         self._cluster_params = value
         self._transforms.avoid_intersections = value.avoid_intersections
+        self._sync_renderer()
+
+    @property
+    def renderer(self) -> CollageArtist:
+        return self._renderer
+
+    def _sync_renderer(self) -> None:
+        """Updates the dataset renderer aligned with the current configuration"""
+        if hasattr(self, "_renderer"):
+            self._renderer.configure(
+                tight_layout=self.cluster_params.tight_layout,
+                margin_size_px=self.cluster_params.margin_size_px,
+                img_poly_transform=self._transforms,
+                stroke_transform=self._image_transforms.transform_strokes,
+                background_transform=self._image_transforms.transform_background,
+                global_image_transform=self._image_transforms.transform_global_image,
+                overlay_polygons=self.cluster_params.overlay_polygons,
+                overlay_mbr=self.cluster_params.overlay_mbr,
+            )
+        else:
+            self._renderer = CollageArtist(
+                tight_layout=self.cluster_params.tight_layout,
+                margin_size_px=self.cluster_params.margin_size_px,
+                img_poly_transform=self._transforms,
+                stroke_transform=self._image_transforms.transform_strokes,
+                background_transform=self._image_transforms.transform_background,
+                global_image_transform=self._image_transforms.transform_global_image,
+                overlay_polygons=self.cluster_params.overlay_polygons,
+                overlay_mbr=self.cluster_params.overlay_mbr,
+            )
 
     @orders.setter
     def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
@@ -420,6 +452,8 @@ class BaseAnnotationDataset(Dataset, ABC):
         for transform, probability in transform_probability_pairs:
             if probability != 0:
                 self.add_transform(transform, probability)
+
+        self._sync_renderer()
 
     @staticmethod
     def samples_in_annotation(
