@@ -75,6 +75,9 @@ class Parameter(RandomizedParameter):
                 f"Value is neither a callable nor a float or int, but {self._value}"
             )
 
+    def __repr__(self) -> str:
+        return repr(self._value)
+
     @property
     def bounds(self) -> tuple[float, float]:
         return self._bounds
@@ -130,7 +133,7 @@ class TrimmedNormalDistribution(Parameter):
         return min(max(m, float(self._rng.normal(self._mean, self._sigma))), M)
 
     def __repr__(self):
-        return f"<TrimN({self._mean},{self._sigma})>"
+        return f"<TrimN({self._mean},{self._sigma}; bounds={self.bounds})>"
 
 
 class UniformDistribution(Parameter):
@@ -178,3 +181,9 @@ class DiscreteDistribution(RandomizedParameter, Generic[T]):
         return self._rng.choice(
             self._values, p=self._probabilities
         )  # ty: ignore[no-matching-overload]
+
+    def __repr__(self) -> str:
+        return (
+            f"<DiscreteUniform(values={self._values},"
+            f" probabilities={self._probabilities})>"
+        )

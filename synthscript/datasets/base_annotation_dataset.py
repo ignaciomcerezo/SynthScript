@@ -188,7 +188,11 @@ class BaseAnnotationDataset(Dataset, ABC):
         if orders_changed or is_initial_update:
             self._recalculate_size_and_sampling_params()
 
-        if orders_changed and previous_entry is not None:
+        if (
+            orders_changed
+            and (previous_entry is not None)
+            and (previous_entry["epochs"] > 0)
+        ):
             self._previous_history.append(previous_entry)
             self._samples_solicited = 0
 
