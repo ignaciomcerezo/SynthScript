@@ -9,11 +9,12 @@ from torch.utils.data import Dataset
 
 from synthscript.datasets.segmentation.formatters import _polygon_to_mask
 from synthscript.datasets.segmentation.segmentation_dataset import SegmentationDataset
-from synthscript.training_helpers.yolo.helpers import letterbox
+from synthscript.training.yolo.helpers import letterbox
 
 
 class _SegmentationLineDataset(Dataset):
-    """Wraps one `SegmentationDataset` sample -- (np.ndarray, list[Polygon]) -- into
+    """
+    Wraps one `SegmentationDataset` sample -- (np.ndarray, list[Polygon]) -- into
     the per-image dict Ultralytics' segmentation loss expects.
     """
 

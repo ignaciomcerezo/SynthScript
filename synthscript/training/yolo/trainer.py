@@ -5,11 +5,12 @@ from ultralytics.models.yolo.segment.train import (  # ty: ignore[unresolved-imp
 )
 
 from synthscript.datasets.segmentation.segmentation_dataset import SegmentationDataset
-from synthscript.training_helpers.yolo.dataset import _SegmentationLineDataset
+from synthscript.training.yolo.dataset import _SegmentationLineDataset
 
 
 class SegmentationDatasetTrainer(SegmentationTrainer):
-    """A `SegmentationTrainer` that pulls train/val batches from two
+    """
+    A `SegmentationTrainer` that pulls train/val batches from two
     `SegmentationDataset` instances instead of a YOLO-format images/labels folder
     described by a data.yaml.
 
