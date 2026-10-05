@@ -18,7 +18,8 @@ class AdaptiveCleanupCallback(TrainerCallback):
 
         if reserved_memory >= self.danger_limit_bytes:
             print(
-                f"\n[Warning] VRAM usage hit {reserved_memory / 1024**3:.2f}GB at step {state.global_step}. Flushing cache to prevent OOM..."
+                f"\n[Warning] VRAM usage hit {reserved_memory / 1024**3:.2f}GB at step"
+                f" {state.global_step}. Flushing cache to prevent OOM..."
             )
 
             gc.collect()
@@ -49,17 +50,17 @@ class ProactiveCleanupCallback(TrainerCallback):
 
         available = self.danger_limit_bytes - allocated
 
-        # calculamos el colchón de seguridad dinámico basado en el EWMA de picos anteriores
         dynamic_buffer = self.safety_buffer_bytes
         if self.ewma_peak is not None:
             dynamic_buffer = max(self.safety_buffer_bytes, self.ewma_peak)
 
-        # si el espacio disponible no es capaz de absorber la demanda estimada, vaciamos caché
         if available < dynamic_buffer or total >= self.danger_limit_bytes:
             print(
-                f"\n 🔮 [WARNING] Proactive VRAM flush (Step {state.global_step}):\n"
-                f"   Allocated VRAM: {allocated / 1024**3:.2f}GB | Reserved Pool: {total / 1024**3:.2f}GB\n"
-                f"   Available Headroom: {available / 1024**3:.2f}GB | Estimated Spike Demand: {dynamic_buffer / 1024**3:.2f}GB\n"
+                f"\n[WARNING] Proactive VRAM flush (Step {state.global_step}):\n"
+                f"\tAllocated VRAM: {allocated / 1024**3:.2f}GB | Reserved Pool:"
+                f" {total / 1024**3:.2f}GB\n"
+                f"\tAvailable Headroom: {available / 1024**3:.2f}GB | Estimated Spike"
+                f" Demand: {dynamic_buffer / 1024**3:.2f}GB\n"
             )
             gc.collect()
             torch.cuda.empty_cache()

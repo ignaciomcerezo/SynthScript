@@ -45,7 +45,7 @@ class OCRDataset(BaseAnnotationDataset):
 
     def __init__(
         self,
-        ocrpages: Sequence[OCRPage],
+        ocrpages: Sequence[OCRPage] | list[OCRPage],
         *,
         rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,

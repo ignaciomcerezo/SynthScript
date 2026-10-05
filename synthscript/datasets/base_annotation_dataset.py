@@ -56,7 +56,7 @@ class ClusterParams:
 
 
 class BaseAnnotationDataset(Dataset, ABC):
-    _annotated_pages: Sequence[OCRPage]
+    _annotated_pages: Sequence[OCRPage] | list[OCRPage]
     _orders: list[int] | None
     _use_paragraphs: bool
     _use_full_pages: bool
@@ -148,7 +148,13 @@ class BaseAnnotationDataset(Dataset, ABC):
             )
 
     @orders.setter
-    def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
+    def orders(
+        self,
+        value: (
+            Sequence[int | Literal["paragraph", "page"]]
+            | list[int | Literal["paragraph", "page"]]
+        ),
+    ):
         self._update_orders(value)
 
     def _update_orders(
@@ -271,9 +277,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     def __len__(self) -> int:
         return self._size
 
-    def _gets_ann_ids_order_and_identifier(
-        self, index: int
-    ) -> tuple[
+    def _gets_ann_ids_order_and_identifier(self, index: int) -> tuple[
         OCRPage,
         Sequence[str],
         int | Literal["paragraph", "page"],
