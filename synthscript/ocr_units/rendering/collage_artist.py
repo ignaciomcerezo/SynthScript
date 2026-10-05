@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Literal
 
 import cv2
@@ -6,6 +6,7 @@ import numpy as np
 from shapely.affinity import translate
 from shapely.geometry import Polygon
 
+from synthscript.ocr_units import OCRPage
 from synthscript.ocr_units.ocr_line import OCRLine
 from synthscript.shared.geometry_processing import get_union_rect
 from synthscript.shared.image_processing import crop_or_resize
@@ -91,6 +92,31 @@ class CollageArtist:
         self.overlay_mbr = overlay_mbr
 
     def compose(
+        self,
+        line_ids: Sequence[str],
+        page: OCRPage,
+    ) -> tuple[np.ndarray, list[Polygon]]:
+
+        if line_ids == "all":
+            line_ids = set(page.lines.keys())
+
+        if not isinstance(line_ids, (set, list)):
+            raise ValueError(
+                "line_ids must be a set[str], list[str], or 'all'; got "
+                f"{type(line_ids)}"
+            )
+        if len(line_ids) != len(set(line_ids)):
+            raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
+
+        lines = {page.lines[line_id] for line_id in line_ids}
+
+        return self._raw_compose(
+            lines,
+            page.image_dimensions,
+            page.background,
+        )
+
+    def _raw_compose(
         self,
         lines: set[OCRLine],
         image_dimensions: tuple[int, int],

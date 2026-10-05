@@ -1,5 +1,6 @@
 import json
 import math
+from collections.abc import Collection
 from copy import deepcopy
 from typing import Literal
 
@@ -8,7 +9,6 @@ from shapely.geometry import Polygon
 
 from synthscript.ocr_units.ocr_line import OCRLine
 from synthscript.ocr_units.ocr_paragraph import OCRParagraph
-from synthscript.ocr_units.rendering import CollageArtist
 from synthscript.shared.graph_utilities import (
     get_connected_components,
     subdictionary,
@@ -363,7 +363,7 @@ class OCRPage:
         return f"<OCRPage {self.page_id!r} with {self.order} lines>"
 
     def synthetic_starting_index(
-        self, line_ids: set[str] | list[str] | Literal["all"]
+        self, line_ids: Collection[str] | Literal["all"]
     ) -> int:
         if None in set(self.lines[line_id].sindex for line_id in line_ids):
             raise ValueError(
@@ -379,7 +379,7 @@ class OCRPage:
 
     def synthetic_transcription(
         self,
-        line_ids: set[str] | list[str] | Literal["all"],
+        line_ids: Collection[str] | Literal["all"],
     ) -> str:
         lines = (
             [self.lines[line_id] for line_id in line_ids]
@@ -389,57 +389,3 @@ class OCRPage:
         lines.sort(key=lambda x: x.sindex)  # ty: ignore[no-matching-overload]
 
         return self.line_separator.join([line.text for line in lines])
-
-    def synthetic_manuscript(
-        self,
-        line_ids: set[str] | list[str] | Literal["all"],
-        *,
-        collage_artist: CollageArtist | None = None,
-    ) -> tuple[np.ndarray, list[Polygon]]:
-        collage_artist = CollageArtist() if collage_artist is None else collage_artist
-
-        if line_ids == "all":
-            line_ids = set(self.lines.keys())
-
-        if not isinstance(line_ids, (set, list)):
-            raise ValueError(
-                "line_ids must be a set[str], list[str], or 'all'; got "
-                f"{type(line_ids)}"
-            )
-        if len(line_ids) != len(set(line_ids)):
-            raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
-
-        lines = {self.lines[line_id] for line_id in line_ids}
-
-        return collage_artist.compose(
-            lines,
-            self.image_dimensions,
-            self.background,
-        )
-
-    def synthetic_sample(
-        self,
-        line_ids: list["str"] | Literal["all"],
-        *,
-        collage_artist: CollageArtist | None = None,
-    ) -> tuple[np.ndarray, str, int]:
-        """
-        Given a list of ImageBox ids, returns:
-        - the synthetic manuscript returned by .synthetic_manuscript,
-        - the transcription corresponding to this image,
-        - the starting index of this text in the page transcription.
-        """
-
-        if not line_ids:
-            raise ValueError("Cannot create a synthetic sample with no lines.")
-        elif line_ids == "all":
-            line_ids = list(self.lines.keys())
-
-        manuscript = self.synthetic_manuscript(line_ids, collage_artist=collage_artist)[
-            0
-        ]
-
-        transcription = self.synthetic_transcription(line_ids)
-        starting_index = self.synthetic_starting_index(line_ids)
-
-        return manuscript, transcription, starting_index

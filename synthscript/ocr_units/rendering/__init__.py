@@ -1,3 +1,3 @@
-from .page_renderer import CollageArtist
+from .collage_artist import CollageArtist
 
 __all__ = ["CollageArtist"]

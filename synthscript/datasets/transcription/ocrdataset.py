@@ -33,7 +33,7 @@ _OCRDataset_formatter_signature = Callable[
 class OCRDataset(BaseAnnotationDataset):
     """
     Dataset variant intended to be used for OCR tasks. Takes as input a sequence of
-    annotations (of type AnnotatedPage) and a collecion of orders that will be used to
+    annotations (of type OCRPage) and a collecion of orders that will be used to
     sample the pages.
 
     When an item is requested, the dataset deterministically chooses an item (taken from
@@ -104,18 +104,17 @@ class OCRDataset(BaseAnnotationDataset):
                 f"Index {index} out of bounds for dataset of size {self._size}"
             )
 
-        ann, selected_line_ids, order, identifier = (
+        page, selected_line_ids, order, identifier = (
             self._gets_ann_ids_order_and_identifier(index)
         )
 
-        synthetic_img, synthetic_transcription, sindex = ann.synthetic_sample(
-            list(selected_line_ids),
-            collage_artist=self.renderer,
-        )
+        synthetic_img, _ = self.renderer.compose(selected_line_ids, page)
+        synthetic_transcription = page.synthetic_transcription(selected_line_ids)
+        sindex = page.synthetic_starting_index(selected_line_ids)
 
         # TODO: improve context generation - implement the use_previous_page_in_context
         # cluster parameter here
-        context = ann.full_transcription[:sindex] if sindex > 0 else ""
+        context = page.full_transcription[:sindex] if sindex > 0 else ""
 
         sample: dict[_OCRDataset_default_getitem_fields, Any] = {
             "image": synthetic_img,
@@ -124,7 +123,7 @@ class OCRDataset(BaseAnnotationDataset):
             "context": context,
             "order": order,
             "id": identifier,
-            "page_id": ann.page_id,
+            "page_id": page.page_id,
         }
 
         return sample

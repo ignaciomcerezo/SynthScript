@@ -70,12 +70,10 @@ class SegmentationDataset(BaseAnnotationDataset):
                 f"Index {index} out of bounds for dataset of size {self._size}"
             )
 
-        ann, selected_line_ids, _, _ = self._gets_ann_ids_order_and_identifier(index)
+        page, selected_line_ids, _, _ = self._gets_ann_ids_order_and_identifier(index)
 
-        image, polygons = ann.synthetic_manuscript(
-            line_ids=list(selected_line_ids),
-            collage_artist=self.renderer,
-        )
+        image, polygons = self.renderer.compose(selected_line_ids, page)
+
         if not self.return_bounding_boxes:
             return image, polygons
         else:
