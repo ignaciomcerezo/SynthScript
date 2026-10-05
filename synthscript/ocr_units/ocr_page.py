@@ -369,9 +369,10 @@ class OCRPage:
             raise ValueError(
                 "Cannot compute transcription or sindex for unordered lines."
             )
+
         starting_index: int = min(
-            value.sindex  # ty: ignore[invalid-argument-type]
-            for value in self.lines.values()
+            line.sindex  # ty: ignore[invalid-argument-type]
+            for line in (self.lines[line_id] for line_id in line_ids)
         )
 
         return starting_index
@@ -385,11 +386,7 @@ class OCRPage:
             if line_ids != "all"
             else list(self.lines.values())
         )
-
-        # sindex follows the preserved or inferred reading order.
-        lines: list[OCRLine] = sorted(
-            lines, key=lambda x: x.sindex
-        )  # ty: ignore[no-matching-overload]
+        lines.sort(key=lambda x: x.sindex)  # ty: ignore[no-matching-overload]
 
         return self.line_separator.join([line.text for line in lines])
 

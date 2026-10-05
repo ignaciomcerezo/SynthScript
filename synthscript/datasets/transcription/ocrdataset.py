@@ -56,8 +56,6 @@ class OCRDataset(BaseAnnotationDataset):
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._previous_history = []
-        self._samples_solicited = 0
         self._update_orders(orders)  # the three previous attributes are updated here
         self._formatter: _OCRDataset_formatter_signature | None = None
 
