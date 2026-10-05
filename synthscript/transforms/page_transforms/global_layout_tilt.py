@@ -22,7 +22,12 @@ class GlobalLayoutTilt(PageTransform):
     remains invariant.
     """
 
-    def __init__(self, angle_degrees: Parameter | float | None = None):
+    def __init__(
+        self,
+        angle_degrees: Parameter | float | None = None,
+        *,
+        probability: float = 1,
+    ):
         if angle_degrees is None:
             angle_degrees = TrimmedNormalDistribution(
                 clip_low=-7.5,
@@ -31,6 +36,7 @@ class GlobalLayoutTilt(PageTransform):
                 sigma=2.5,
             )
         self._angle_degrees = Parameter(angle_degrees)
+        self.probability = probability
         low, high = self._angle_degrees.bounds
         if low <= -89.0 or high >= 89.0:
             raise ValueError("angle_degrees must be less, in absolute value, than 89.")

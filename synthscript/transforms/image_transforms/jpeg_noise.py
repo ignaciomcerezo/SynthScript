@@ -11,8 +11,9 @@ class ResolutionNoise(GlobalImageTransform):
     image, that distort it.
     """
 
-    def __init__(self, quality: Parameter | float = 75):
+    def __init__(self, quality: Parameter | float = 75, *, probability: float = 1):
         self.quality = Parameter(quality)
+        self.probability = probability
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         quality = min(100, max(0, int(self.quality())))

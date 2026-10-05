@@ -52,19 +52,18 @@ class LayoutGenerator:
     def add_transform(
         self,
         transform: OCRTransformType | None,
-        probability: float = 1,
     ) -> None:
         """Append a transform, using the same interface as OCRDataset."""
         if transform is not None:
-            self._transforms.add_transform(transform, probability)
+            self._transforms.add_transform(transform)
 
     def set_transform(
         self,
-        *transform_probability_pairs: tuple[OCRTransformType | None, float],
+        *transforms: OCRTransformType | None,
         avoid_intersections: bool = True,
     ) -> None:
         """Replace all transforms, using the same interface as OCRDataset."""
-        for transform, _ in transform_probability_pairs:
+        for transform in transforms:
             if transform is not None and not isinstance(
                 transform,
                 (LineTransform, ParagraphTransform, PageTransform),
@@ -78,9 +77,9 @@ class LayoutGenerator:
             avoid_intersections=avoid_intersections, rng=self._transforms.rng
         )
 
-        for transform, probability in transform_probability_pairs:
-            if (probability != 0) and transform is not None:
-                self._transforms.add_transform(transform, probability)
+        for transform in transforms:
+            if transform is not None:
+                self._transforms.add_transform(transform)
 
     def apply(self, annotation: OCRPage) -> OCRPage:
         """Return a new page made from the transform pack's crops and polygons."""

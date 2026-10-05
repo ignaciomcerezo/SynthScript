@@ -271,7 +271,9 @@ class BaseAnnotationDataset(Dataset, ABC):
     def __len__(self) -> int:
         return self._size
 
-    def _gets_ann_ids_order_and_identifier(self, index: int) -> tuple[
+    def _gets_ann_ids_order_and_identifier(
+        self, index: int
+    ) -> tuple[
         OCRPage,
         Sequence[str],
         int | Literal["paragraph", "page"],
@@ -389,22 +391,18 @@ class BaseAnnotationDataset(Dataset, ABC):
     def add_transform(
         self,
         transform: DatasetTransform | None,
-        probability: float = 1,
     ) -> None:
         if isinstance(transform, ImageTransform):
-            self._image_transforms.add_transform(transform, probability)
+            self._image_transforms.add_transform(transform)
         elif transform is not None:
-            self._transforms.add_transform(transform, probability)
+            self._transforms.add_transform(transform)
 
     def set_transform(
         self,
-        *transform_probability_pairs: tuple[
-            DatasetTransform | None,
-            float,
-        ],
+        *transforms: DatasetTransform | None,
     ) -> None:
 
-        for transform in (transform for transform, _ in transform_probability_pairs):
+        for transform in transforms:
             if transform is not None and not isinstance(
                 transform,
                 (
@@ -423,9 +421,8 @@ class BaseAnnotationDataset(Dataset, ABC):
             rng=self.rng,
         )
         self._image_transforms = ImageTransformPack(rng=self.rng)
-        for transform, probability in transform_probability_pairs:
-            if probability != 0:
-                self.add_transform(transform, probability)
+        for transform in transforms:
+            self.add_transform(transform)
 
         self._sync_renderer()
 

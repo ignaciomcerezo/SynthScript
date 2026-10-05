@@ -19,10 +19,13 @@ class ReadingDirectionClearance(ParagraphTransform):
         self,
         relative_size_increment: Parameter | float,
         add_probabilistic_noise: bool = False,
+        *,
+        probability: float = 1,
     ):
 
         self._relative = Parameter(relative_size_increment)
         self.noise = add_probabilistic_noise
+        self.probability = probability
         self.may_cause_intersections = True
 
     def __call__(

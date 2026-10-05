@@ -19,7 +19,12 @@ class ParagraphScaleJitter(PageTransform):
     Rescales each paragraph independently from each other.
     """
 
-    def __init__(self, scale_factor: Parameter | float | None = None):
+    def __init__(
+        self,
+        scale_factor: Parameter | float | None = None,
+        *,
+        probability: float = 1,
+    ):
         if scale_factor is None:
             scale_factor = TrimmedNormalDistribution(
                 clip_low=0.85,
@@ -28,6 +33,7 @@ class ParagraphScaleJitter(PageTransform):
                 sigma=0.05,
             )
         self._scale_factor = Parameter(scale_factor)
+        self.probability = probability
         low, _ = self._scale_factor.bounds
         if low <= 0:
             raise ValueError("scale_factor must be bounded strictly above zero.")

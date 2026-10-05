@@ -20,9 +20,11 @@ class ParagraphwiseRotation(ParagraphTransform):
         absolute: Parameter | float,
         *,
         metric: str = "degrees",
+        probability: float = 1,
     ):
         self._absolute = Parameter(absolute)
         self._metric = metric
+        self.probability = probability
         self.may_cause_intersections = True
 
     def __call__(

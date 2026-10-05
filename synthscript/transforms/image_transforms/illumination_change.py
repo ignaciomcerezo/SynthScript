@@ -11,10 +11,15 @@ class IlluminationChange(GlobalImageTransform):
     """
 
     def __init__(
-        self, intensity: Parameter | float = 0.05, relative_scale: Parameter | float = 3
+        self,
+        intensity: Parameter | float = 0.05,
+        relative_scale: Parameter | float = 3,
+        *,
+        probability: float = 1,
     ):
         self.intensity = Parameter(intensity)
         self.relative_scale = Parameter(relative_scale)
+        self.probability = probability
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         height, width = image.shape[:2]

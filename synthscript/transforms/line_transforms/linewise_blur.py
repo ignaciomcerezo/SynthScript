@@ -7,8 +7,9 @@ from synthscript.transforms.transforms import LineTransform
 
 
 class Blur(LineTransform):
-    def __init__(self, radius: Parameter | float = 2.0):
+    def __init__(self, radius: Parameter | float = 2.0, *, probability: float = 1):
         self.radius: Parameter = Parameter(radius)
+        self.probability = probability
         self.may_cause_intersections = False
 
     def __call__(

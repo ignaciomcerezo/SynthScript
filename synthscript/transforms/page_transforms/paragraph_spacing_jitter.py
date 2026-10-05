@@ -22,7 +22,12 @@ class ParagraphSpacingJitter(PageTransform):
     Adds vertical traslations between consecutive paragraphs.
     """
 
-    def __init__(self, relative_gap_noise: Parameter | float | None = None):
+    def __init__(
+        self,
+        relative_gap_noise: Parameter | float | None = None,
+        *,
+        probability: float = 1,
+    ):
         if relative_gap_noise is None:
             relative_gap_noise = TrimmedNormalDistribution(
                 clip_low=-0.35,
@@ -31,6 +36,7 @@ class ParagraphSpacingJitter(PageTransform):
                 sigma=0.12,
             )
         self._relative_gap_noise = Parameter(relative_gap_noise)
+        self.probability = probability
         low, _ = self._relative_gap_noise.bounds
         if low <= -1.0:
             raise ValueError(

@@ -15,10 +15,13 @@ class DirectionalBlur(StrokeTransform):
         sigma_x: Parameter | float = 1,
         sigma_y: Parameter | float = 0,
         angle: Parameter | float = 0,
+        *,
+        probability: float = 1,
     ):
         self.sigma_x = Parameter(sigma_x)
         self.sigma_y = Parameter(sigma_y)
         self.angle = Parameter(angle)
+        self.probability = probability
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         sigma_x = max(0.0, float(self.sigma_x()))

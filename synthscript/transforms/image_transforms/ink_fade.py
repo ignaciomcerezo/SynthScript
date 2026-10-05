@@ -17,6 +17,8 @@ class InkFade(StrokeTransform):
         self,
         strength: Parameter | float = 0.2,
         direction: DiscreteDistribution[Direction] | Direction = "right",
+        *,
+        probability: float = 1,
     ):
         self.strength = Parameter(strength)
         self.direction = (
@@ -24,6 +26,7 @@ class InkFade(StrokeTransform):
             if isinstance(direction, DiscreteDistribution)
             else DiscreteDistribution([direction], [1])
         )
+        self.probability = probability
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         strength = np.clip(float(self.strength()), 0.0, 1.0)

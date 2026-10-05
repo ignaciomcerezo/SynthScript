@@ -21,6 +21,29 @@ line_group_equivalent_type = (
 
 class _RandomizedTransform:
     @property
+    def probability(self) -> float:
+        return getattr(self, "_probability", 1.0)
+
+    @probability.setter
+    def probability(self, value: float) -> None:
+        if not 0 <= value <= 1:
+            raise ValueError("Transform probability must lie between 0 and 1.")
+        self._probability = value
+
+    def should_apply(self) -> bool:
+        return self.probability == 1 or self.rng.random() < self.probability
+
+    def __repr__(self) -> str:
+        arguments = [
+            f"{name.lstrip('_')}={value!r}"
+            for name, value in vars(self).items()
+            if name
+            not in {"_rng", "_probability", "may_cause_intersections", "type2map"}
+        ]
+        arguments.append(f"probability={self.probability!r}")
+        return f"{type(self).__name__}({', '.join(arguments)})"
+
+    @property
     def rng(self) -> np.random.Generator:
         if not hasattr(self, "_rng"):
             self._rng = np.random.default_rng()
@@ -127,8 +150,8 @@ class ParagraphTransform(OCRTransform):
         raise NotImplementedError
 
     @staticmethod
-    def from_linewise(transform: LineTransform):
-        return ParagraphFromLineTransform(transform)
+    def from_linewise(transform: LineTransform, *, probability: float = 1):
+        return ParagraphFromLineTransform(transform, probability=transform.probability)
 
     def in_place(
         self,
@@ -175,8 +198,9 @@ class ParagraphFromLineTransform(ParagraphTransform):
     LineTransform turned ParagraphTransform by applying it to all lines in a paragraph.
     """
 
-    def __init__(self, transform: LineTransform):
+    def __init__(self, transform: LineTransform, *, probability: float = 1):
         self._transform = transform
+        self.probability = probability
 
     def __call__(
         self,

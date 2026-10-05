@@ -23,7 +23,12 @@ class ParagraphIndentationJitter(PageTransform):
     Adds smooth horizontal movement to the paragraphs using random walks.
     """
 
-    def __init__(self, relative_step: Parameter | float | None = None):
+    def __init__(
+        self,
+        relative_step: Parameter | float | None = None,
+        *,
+        probability: float = 1,
+    ):
         if relative_step is None:
             relative_step = TrimmedNormalDistribution(
                 clip_low=-0.12,
@@ -32,6 +37,7 @@ class ParagraphIndentationJitter(PageTransform):
                 sigma=0.04,
             )
         self._relative_step = Parameter(relative_step)
+        self.probability = probability
         self.may_cause_intersections = True
 
     def __call__(

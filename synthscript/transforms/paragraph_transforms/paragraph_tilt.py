@@ -18,11 +18,14 @@ class ParagraphTilt(ParagraphTransform):
         self,
         strength: Parameter | float = 0.2,
         tilt_axis: Literal["vertical", "horizontal"] = "horizontal",
+        *,
+        probability: float = 1,
     ):
         self.relative = Parameter(strength)
-        assert self.relative.is_bounded(
-            -1, 1
-        ), "The strength of the tilt must lie be between (-1, 1)."
+        self.probability = probability
+        assert self.relative.is_bounded(-1, 1), (
+            "The strength of the tilt must lie be between (-1, 1)."
+        )
         self._tilt_horizontal = tilt_axis == "horizontal"
         self.may_cause_intersections = True
 

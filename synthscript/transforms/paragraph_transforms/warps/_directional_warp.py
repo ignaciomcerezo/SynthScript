@@ -29,10 +29,15 @@ class _DirectionalArchWarp(ParagraphTransform):
     """
 
     def __init__(
-        self, amplitude: Parameter | float, *, segmentation_thinness: int = 10
+        self,
+        amplitude: Parameter | float,
+        *,
+        segmentation_thinness: int = 10,
+        probability: float = 1,
     ):
         self.amplitude = Parameter(amplitude)
         self.segmentation_thinness = segmentation_thinness
+        self.probability = probability
         self.may_cause_intersections = True
 
     def __call__(

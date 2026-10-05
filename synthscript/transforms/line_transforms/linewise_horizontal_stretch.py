@@ -8,9 +8,12 @@ from synthscript.transforms.transforms import LineTransform
 
 
 class LinewiseHorizontalStretch(LineTransform):
-    def __init__(self, scale_factor: Parameter | float = 1.2):
+    def __init__(
+        self, scale_factor: Parameter | float = 1.2, *, probability: float = 1
+    ):
 
         self.scale_factor = Parameter(scale_factor)
+        self.probability = probability
         self.may_cause_intersections = True
 
     def __call__(

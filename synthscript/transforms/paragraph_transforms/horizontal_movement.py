@@ -45,6 +45,8 @@ class HorizontalMovement(ParagraphFromLineTransform):
         amplitude: scalar | None = None,
         slope: scalar | None = None,
         intercept: scalar | None = 0,
+        *,
+        probability: float = 1,
     ):
         self.noise_type = noise_type
         self.period = Parameter(period) if period is not None else None
@@ -59,11 +61,12 @@ class HorizontalMovement(ParagraphFromLineTransform):
             "from_amplitude_parameter": self._call_random_polygons,
             "zigzag": self._call_zigzag_polygons,
         }
+        self.probability = probability
         self._validate_parameters()
         self.may_cause_intersections = True
 
     def __repr__(self) -> str:
-        return f"<HorizontalMovement of type {self.noise_type} with parameters>"
+        return super().__repr__()
 
     def _validate_parameters(self):
         needed_parameters = _NOISE2PARAMETERS[self.noise_type]
@@ -117,10 +120,7 @@ class HorizontalMovement(ParagraphFromLineTransform):
             )
 
             delta = self.amplitude() * np.cos(  # ty: ignore[call-non-callable]
-                2
-                * np.pi
-                * distance_in_reading_dir
-                / self.period()  # ty: ignore[call-non-callable]
+                2 * np.pi * distance_in_reading_dir / self.period()  # ty: ignore[call-non-callable]
             )
             v = delta * horizontal_direction
 
@@ -139,7 +139,6 @@ class HorizontalMovement(ParagraphFromLineTransform):
         new_polygons = []
 
         for i, polygon in enumerate(polygons):
-
             amplitude = self.amplitude()  # ty: ignore[call-non-callable]
 
             delta = amplitude if i % 2 == 0 else -amplitude
