@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import unquote as url_unquote
 
@@ -125,6 +126,59 @@ class LabelStudioInterface(ExternalInterface):
             print("LSI Connection unsuccessful.")
             return False
 
+    @staticmethod
+    def _get_latest_update_of_project(project) -> datetime | None:
+        """Return the timestamp of the most recently updated remote task."""
+        response = project.get_paginated_tasks(
+            ordering=["-updated_at"],
+            page=1,
+            page_size=1,
+        )
+        tasks = response.get("tasks", [])
+        if not tasks:
+            return None
+
+        updated_at = tasks[0]["updated_at"]
+        if isinstance(updated_at, datetime):
+            parsed = updated_at
+        else:
+            parsed = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
+
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _page_xml_creation_time(path: Path) -> datetime:
+        file_stat = path.stat()
+        timestamp = getattr(file_stat, "st_birthtime", None)
+        if timestamp is None:
+            timestamp = file_stat.st_ctime if os.name == "nt" else file_stat.st_mtime
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+    def annotations_are_up_to_date(
+        self,
+        paths: PathBundle,
+        project=None,
+    ) -> bool:
+        """Check whether all local PAGE files are newer than Label Studio."""
+        page_xml_files = tuple(paths.page_xml_path.glob("*.xml"))
+        if not page_xml_files:
+            return False
+
+        if project is None:
+            ls_client = Client(url=self.url, api_key=self.token)
+            project = ls_client.get_project(id=self.project_id)
+
+        latest_remote_update = self._get_latest_update_of_project(project)
+        if latest_remote_update is None:
+            return False
+
+        oldest_local_creation = min(
+            self._page_xml_creation_time(path) for path in page_xml_files
+        )
+        return oldest_local_creation >= latest_remote_update
+
     def _update_usernames(self, ls_client: Client | None = None) -> None:
         if ls_client is None:
             ls_client = Client(url=self.url, api_key=self.token)
@@ -175,6 +229,10 @@ class LabelStudioInterface(ExternalInterface):
                 f"LSI configured with online={self.online}; "
                 "keeping local generated data."
             )
+            return
+
+        if self.annotations_are_up_to_date(paths):
+            print("Local PAGE-XML annotations are already up to date.")
             return
 
         tasks = self.fetch_simplified_tasks()
