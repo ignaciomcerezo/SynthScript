@@ -24,7 +24,6 @@ class LayoutOCRDataset(OCRDataset):
         annotations: Sequence[OCRPage],
         layout_generator: LayoutGenerator,
         *,
-        orders: orders_type,
         rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
@@ -35,7 +34,6 @@ class LayoutOCRDataset(OCRDataset):
 
         super().__init__(
             ocrpages=self._generate_layouts(),
-            orders=orders,
             rng=initial_rng,
             cluster_transform_params=cluster_transform_params,
         )
@@ -68,9 +66,8 @@ class LayoutOCRDataset(OCRDataset):
         cls,
         *groups_of_annotations: list[OCRPage],
         p: float,
-        orders: orders_type,
         layout_generator: LayoutGenerator | None = None,
-        orders_to_split_with: orders_type | None = None,
+        orders_to_split_with: orders_type,
         rng_a: RNGInput = None,
         rng_b: RNGInput = None,
         n_trials: int | None = None,
@@ -85,9 +82,7 @@ class LayoutOCRDataset(OCRDataset):
             train_i, test_i = cls.montecarlo_ann_split(
                 annotations,
                 p,
-                orders=(
-                    orders if orders_to_split_with is None else orders_to_split_with
-                ),
+                orders=orders_to_split_with,
                 rng=split_rng,
                 n_trials=1000 if n_trials is None else n_trials,
             )
@@ -95,6 +90,6 @@ class LayoutOCRDataset(OCRDataset):
             test.extend(test_i)
 
         return (
-            cls(train, generator, orders=orders, rng=rng_b),
-            cls(test, generator, orders=orders, rng=rng_b),
+            cls(train, generator, rng=rng_b),
+            cls(test, generator, rng=rng_b),
         )

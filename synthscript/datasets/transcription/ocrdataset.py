@@ -9,7 +9,6 @@ from synthscript.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     ClusterParams,
     RNGInput,
-    orders_type,
 )
 from synthscript.datasets.image_transform_pack import ImageTransformPack
 from synthscript.datasets.ocr_transform_pack import OCRTransformPack
@@ -33,8 +32,8 @@ _OCRDataset_formatter_signature = Callable[
 class OCRDataset(BaseAnnotationDataset):
     """
     Dataset variant intended to be used for OCR tasks. Takes as input a sequence of
-    annotations (of type OCRPage) and a collecion of orders that will be used to
-    sample the pages.
+    annotations (of type OCRPage). Sampling orders must be assigned through .orders
+    before requesting an item.
 
     When an item is requested, the dataset deterministically chooses an item (taken from
     all possible contiguous clusters of lines of length one of the orders provided),
@@ -48,15 +47,14 @@ class OCRDataset(BaseAnnotationDataset):
         self,
         ocrpages: Sequence[OCRPage],
         *,
-        orders: orders_type,
         rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
         self._annotated_pages = ocrpages
-        self._orders: list[int] = []
+        self._orders: list[int] | None = None
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._update_orders(orders)  # the three previous attributes are updated here
+        self._recalculate_size_and_sampling_params()
         self._formatter: _OCRDataset_formatter_signature | None = None
 
         self._cluster_params = (
@@ -99,11 +97,6 @@ class OCRDataset(BaseAnnotationDataset):
         uniformly, and applies the layout transforms defined.
         The formatter is NOT applied to the sample.
         """
-        if index < 0 or index >= self._size:
-            raise IndexError(
-                f"Index {index} out of bounds for dataset of size {self._size}"
-            )
-
         page, selected_line_ids, order, identifier = (
             self._gets_ann_ids_order_and_identifier(index)
         )

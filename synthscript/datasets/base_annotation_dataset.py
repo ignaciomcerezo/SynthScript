@@ -57,7 +57,7 @@ class ClusterParams:
 
 class BaseAnnotationDataset(Dataset, ABC):
     _annotated_pages: Sequence[OCRPage]
-    _orders: list[int]
+    _orders: list[int] | None
     _use_paragraphs: bool
     _use_full_pages: bool
     _transforms: OCRTransformPack
@@ -71,7 +71,6 @@ class BaseAnnotationDataset(Dataset, ABC):
         self,
         pages: Sequence[OCRPage],
         *,
-        orders: orders_type,
         rng: RNGInput = None,
         **kwargs,
     ) -> None:
@@ -99,7 +98,10 @@ class BaseAnnotationDataset(Dataset, ABC):
         return [ann.page_id for ann in self._annotated_pages]
 
     @property
-    def orders(self):
+    def orders(self) -> list[int | Literal["paragraph", "page"]] | None:
+        if self._orders is None:
+            return None
+
         return (
             self._orders
             + ["paragraph"] * self._use_paragraphs
@@ -153,6 +155,8 @@ class BaseAnnotationDataset(Dataset, ABC):
         self,
         new_orders: Collection[int | Literal["paragraph", "page"]],
     ):
+        if new_orders is None:
+            raise ValueError("New orders cannot be None.")
         for order in new_orders:
             if (
                 isinstance(order, float)
@@ -167,15 +171,17 @@ class BaseAnnotationDataset(Dataset, ABC):
                     "Only ints > 0, 'paragraph' and 'page' are acceptable orders."
                 )
 
-        pseudo_old_orders: set[int | Literal["paragraph", "page"]] = set(self._orders)
+        pseudo_old_orders: set[int | Literal["paragraph", "page"]] = (
+            set() if self._orders is None else set(self._orders)
+        )
 
         if self._use_paragraphs:
             pseudo_old_orders.add("paragraph")
         if self._use_full_pages:
             pseudo_old_orders.add("page")
 
-        orders_changed = set(new_orders) != pseudo_old_orders
-        is_initial_update = not hasattr(self, "_size")
+        is_initial_update = self._orders is None
+        orders_changed = is_initial_update or set(new_orders) != pseudo_old_orders
 
         if orders_changed:
             self._orders = [x for x in new_orders if isinstance(x, int)]
@@ -214,6 +220,13 @@ class BaseAnnotationDataset(Dataset, ABC):
         )
 
     def _recalculate_size_and_sampling_params(self):
+        if self._orders is None:
+            self._size = 0
+            self._page_sample_counts = []
+            self._page_prefix_sums = np.array([], dtype=np.int64)
+            self._par_prefix_sums = []
+            return
+
         page_sample_counts: list[int] = []
         par_prefix_sums: list[np.ndarray] = []
         page_prefix_sums: list[int] = []
@@ -275,6 +288,12 @@ class BaseAnnotationDataset(Dataset, ABC):
         The sample is represented as the paragraph sample because its line
         IDs are identical to those of the complete page.
         """
+        if self._orders is None:
+            raise RuntimeError(
+                "Dataset orders have not been set. Assign dataset.orders before "
+                "requesting items."
+            )
+
         if index < 0 or index >= self._size:
             raise IndexError(
                 f"Index {index} out of bounds for dataset of size {self._size}"
@@ -517,8 +536,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         cls: type[T],
         *groups_of_annotations: list[OCRPage],
         p: float,
-        orders: orders_type,
-        orders_to_split_with: orders_type | None = None,
+        orders_to_split_with: list[int | Literal["page", "paragraph"]],
         rng_a: np.random.Generator | int | None = None,
         rng_b: np.random.Generator | int | None = None,
         n_trials: int | None = None,
@@ -533,8 +551,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         characteristic.
 
         The split is done taking the number of samples in each annotation
-        considering only samples that are of order orders_to_split_with
-        (or 'orders', if the former is not given a value).
+        considering only samples that are of order orders_to_split_with.
 
         Example:
 
@@ -548,8 +565,10 @@ class BaseAnnotationDataset(Dataset, ABC):
                 ann_group_3,
                 p=0.95,
                 orders_to_split_with=[1],
-                orders=[1, 2, 3, 4, 5],
             )
+
+            train.orders = [1, 2, 3, 4, 5]
+            test.orders = [1, 2, 3, 4, 5]
 
         This produces a split that has approximately 0.95 of groups 1, 2,
         and 3 in train, with the remaining annotations in test.
@@ -564,9 +583,7 @@ class BaseAnnotationDataset(Dataset, ABC):
             train_i, test_i = cls.montecarlo_ann_split(
                 annotations,
                 p,
-                orders=(
-                    orders if orders_to_split_with is None else orders_to_split_with
-                ),
+                orders=(orders_to_split_with),
                 rng=rng_a,
                 n_trials=1000 if n_trials is None else n_trials,
             )
@@ -575,8 +592,8 @@ class BaseAnnotationDataset(Dataset, ABC):
             test += test_i
 
         return (
-            cls(train, orders=orders, rng=rng_b),
-            cls(test, orders=orders, rng=rng_b),
+            cls(train, rng=rng_b),
+            cls(test, rng=rng_b),
         )
 
     @abstractmethod
