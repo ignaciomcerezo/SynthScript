@@ -78,11 +78,32 @@ class Curriculum:
         transform = self._transforms_per_phase[self._current_phase_index]
         dataset.set_transform(transform)
 
+    def advance_phase(self, dataset: BaseAnnotationDataset) -> None:
+        """Mark the current phase (not epoch) complete and configure the next."""
+        if self.is_complete():
+            raise RuntimeError("Cannot advance a completed curriculum.")
+
+        self._current_phase_index += 1
+        if self.is_complete():
+            self._remaining_phase_epochs = 0
+            return
+        self._remaining_phase_epochs = self._epochs[self._current_phase_index]
+
+        dataset.orders = self._order_phases[self._current_phase_index]
+        transform = self._transforms_per_phase[self._current_phase_index]
+        dataset.set_transform(transform)
+
     @property
     def current_phase(self) -> list[Order]:
         if self.is_complete():
             raise RuntimeError("A completed curriculum has no current phase.")
         return list(self._order_phases[self._current_phase_index])
+
+    @property
+    def current_phase_epochs(self) -> int:
+        if self.is_complete():
+            raise RuntimeError("A completed curriculum has no current phase.")
+        return self._epochs[self._current_phase_index]
 
     @property
     def remaining_phase_epochs(self) -> int:
