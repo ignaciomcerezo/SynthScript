@@ -1,3 +1,5 @@
+from tqdm.auto import tqdm
+
 from synthscript.loading.external_interfaces.label_studio.ls_typed_dicts import (
     LabelStudioTask,
     PolygonResult,
@@ -178,4 +180,9 @@ def simplify_task(task_input: dict | LabelStudioTask) -> SimplifiedTask:
 def simplify_tasks(
     tasks: list[dict | LabelStudioTask],
 ) -> list[SimplifiedTask]:
-    return [simplify_task(task) for task in tasks]
+    simplified_tasks = []
+
+    for task in tqdm(tasks):
+        simplified_tasks.append(simplify_task(task))
+
+    return simplified_tasks

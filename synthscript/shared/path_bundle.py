@@ -3,8 +3,9 @@ from os import getcwd
 from pathlib import Path
 from typing import Literal
 
-import cv2
 import numpy as np
+
+from synthscript.shared.image_handling import load_image_grayscale
 
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
@@ -161,13 +162,10 @@ class PathBundle:
 
     @staticmethod
     def load_image_grayscale_np(path: Path) -> np.ndarray:
-        img = cv2.imdecode(
-            np.fromfile(path, dtype=np.uint8),
-            cv2.IMREAD_GRAYSCALE,
-        )
-        if img is None:
-            raise ValueError(f"Error while loading the image at {path}.")
-        return img
+        try:
+            return load_image_grayscale(path)
+        except ValueError as exc:
+            raise ValueError(f"Error while loading the image at {path}.") from exc
 
     def load_background_image(
         self, page_name: str | int, suffix: str = ".png"

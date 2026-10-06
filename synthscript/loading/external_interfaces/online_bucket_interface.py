@@ -7,13 +7,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Literal
 
-import cv2
-import numpy as np
 import requests
 from dotenv import load_dotenv
 from tqdm.auto import tqdm
 
 from synthscript.loading.external_interfaces.external_interface import ExternalInterface
+from synthscript.shared.image_handling import write_encoded_image_grayscale
 from synthscript.shared.path_bundle import PathBundle
 
 
@@ -176,16 +175,12 @@ class OnlineBucketInterface(ExternalInterface):
 
             local_img = self.corresponding_path_accesor(paths)(page_name)
             local_img.parent.mkdir(parents=True, exist_ok=True)
-            img = cv2.imdecode(
-                np.frombuffer(img_resp.content, dtype=np.uint8),
-                cv2.IMREAD_GRAYSCALE,
-            )
-            if img is None:
-                raise ValueError(f"Downloaded image {img_url!r} could not be decoded.")
-            encoded, buffer = cv2.imencode(local_img.suffix, img)
-            if not encoded:
-                raise ValueError(f"Downloaded image {img_url!r} could not be encoded.")
-            local_img.write_bytes(buffer.tobytes())
+            try:
+                write_encoded_image_grayscale(local_img, img_resp.content)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Downloaded image {img_url!r} could not be saved as grayscale."
+                ) from exc
             return page_name
 
     def setup(self, paths: PathBundle) -> None:
