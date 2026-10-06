@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from shapely.affinity import translate
 
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack, OCRTransformType
+from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
 from synthscript.shared.geometry_processing import get_union_rect
 from synthscript.transforms import (
@@ -12,6 +12,7 @@ from synthscript.transforms import (
     PageTransform,
     ParagraphTransform,
 )
+from synthscript.transforms.transforms import OCRTransform
 
 
 class LayoutGenerator:
@@ -51,7 +52,7 @@ class LayoutGenerator:
 
     def add_transform(
         self,
-        transform: OCRTransformType | None,
+        transform: OCRTransform | None,
     ) -> None:
         """Append a transform, using the same interface as OCRDataset."""
         if transform is not None:
@@ -59,7 +60,7 @@ class LayoutGenerator:
 
     def set_transform(
         self,
-        *transforms: OCRTransformType | None,
+        *transforms: OCRTransform | None,
         avoid_intersections: bool = True,
     ) -> None:
         """Replace all transforms, using the same interface as OCRDataset."""
