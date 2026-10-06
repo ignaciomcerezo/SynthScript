@@ -13,8 +13,7 @@ from synthscript.transforms import (
     PageTransform,
     ParagraphTransform,
 )
-
-OCRTransformType = LineTransform | ParagraphTransform | PageTransform
+from synthscript.transforms.transforms import OCRTransform
 
 
 class OCRTransformPack:
@@ -44,7 +43,7 @@ class OCRTransformPack:
         for transform in self._all_transforms():
             transform.rng = self._rng
 
-    def _all_transforms(self) -> list[OCRTransformType]:
+    def _all_transforms(self) -> list[OCRTransform]:
         return [*self._line, *self._paragraph, *self._page]
 
     @property
@@ -59,7 +58,7 @@ class OCRTransformPack:
 
     def add_transform(
         self,
-        transform: OCRTransformType,
+        transform: OCRTransform,
     ) -> None:
         """Append a supported OCR layout transform."""
         transform.rng = self._rng

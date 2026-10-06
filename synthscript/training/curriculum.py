@@ -1,13 +1,14 @@
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from synthscript.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
-    DatasetTransform,
 )
+from synthscript.transforms.transforms import DatasetTransform
 
 Order = int | Literal["page", "paragraph"]
 Phase = Sequence[Order]
+Transforms = Sequence[DatasetTransform | None]
 
 
 class Curriculum:
@@ -15,7 +16,7 @@ class Curriculum:
         self,
         phases: Sequence[Phase],
         epochs_per_phase: Sequence[int] | None = None,
-        transforms_per_phase: Sequence[DatasetTransform | None] | None = None,
+        transforms_per_phase: Transforms | Sequence[Transforms] | None = None,
     ) -> None:
         if not self._validate_phases(phases):
             raise ValueError(
@@ -27,14 +28,11 @@ class Curriculum:
             if epochs_per_phase is not None
             else (1,) * len(self._order_phases)
         )
-        self._transforms_per_phase = (
-            [None for _ in range(len(self._order_phases))]
-            if transforms_per_phase is None
-            else transforms_per_phase
+        self._transforms_per_phase = self._normalize_transforms(
+            transforms_per_phase,
+            len(self._order_phases),
         )
-        if (len(self._epochs) != len(self._order_phases)) or (
-            len(self._epochs) != len(self._transforms_per_phase)
-        ):
+        if len(self._epochs) != len(self._order_phases):
             raise ValueError("Epochs and phases must coincide in length.")
         if any(
             isinstance(epochs, bool) or not isinstance(epochs, int) or epochs < 1
@@ -44,6 +42,44 @@ class Curriculum:
 
         self._current_phase_index = 0
         self._remaining_phase_epochs = self._epochs[0] if self._epochs else 0
+
+    @staticmethod
+    def _normalize_transforms(
+        transforms: Transforms | Sequence[Transforms] | None,
+        phase_count: int,
+    ) -> list[list[DatasetTransform | None]]:
+        if transforms is None:
+            return [[] for _ in range(phase_count)]
+
+        transform_items = list(transforms)
+        if all(
+            transform is None or isinstance(transform, DatasetTransform)
+            for transform in transform_items
+        ):
+            shared_transforms = cast(list[DatasetTransform | None], transform_items)
+            return [list(shared_transforms) for _ in range(phase_count)]
+
+        if not all(
+            isinstance(phase_transforms, Sequence)
+            for phase_transforms in transform_items
+        ):
+            raise ValueError(
+                "Transforms must be a sequence of transforms or one sequence per phase."
+            )
+        if len(transform_items) != phase_count:
+            raise ValueError("Transforms and phases must coincide in length.")
+
+        phase_transform_items = cast(list[Transforms], transform_items)
+        normalized = [
+            list(phase_transforms) for phase_transforms in phase_transform_items
+        ]
+        if any(
+            transform is not None and not isinstance(transform, DatasetTransform)
+            for phase_transforms in normalized
+            for transform in phase_transforms
+        ):
+            raise ValueError("Unsupported transform type.")
+        return normalized
 
     @staticmethod
     def _validate_phases(
@@ -75,8 +111,8 @@ class Curriculum:
             self._remaining_phase_epochs = self._epochs[self._current_phase_index]
 
         dataset.orders = self._order_phases[self._current_phase_index]
-        transform = self._transforms_per_phase[self._current_phase_index]
-        dataset.set_transform(transform)
+        transforms = self._transforms_per_phase[self._current_phase_index]
+        dataset.set_transform(*transforms)
 
     def advance_phase(self, dataset: BaseAnnotationDataset) -> None:
         """Mark the current phase (not epoch) complete and configure the next."""
@@ -90,8 +126,8 @@ class Curriculum:
         self._remaining_phase_epochs = self._epochs[self._current_phase_index]
 
         dataset.orders = self._order_phases[self._current_phase_index]
-        transform = self._transforms_per_phase[self._current_phase_index]
-        dataset.set_transform(transform)
+        transforms = self._transforms_per_phase[self._current_phase_index]
+        dataset.set_transform(*transforms)
 
     @property
     def current_phase(self) -> list[Order]:

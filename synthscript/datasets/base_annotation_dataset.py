@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING, Literal, TypeVar
 import numpy as np
 
 from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack, OCRTransformType
+from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
 from synthscript.ocr_units.rendering import CollageArtist
 from synthscript.transforms.transforms import (
     BackgroundTransform,
+    DatasetTransform,
     GlobalImageTransform,
     LineTransform,
     PageTransform,
@@ -34,8 +35,6 @@ else:
             def __getitem__(self, index: int):
                 raise NotImplementedError
 
-
-DatasetTransform = OCRTransformType | ImageTransform
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
 RNGInput = np.random.Generator | int | None

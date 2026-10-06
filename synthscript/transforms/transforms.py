@@ -291,3 +291,6 @@ class GlobalImageTransform(ImageTransform, ABC):
     @abstractmethod
     def __call__(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError
+
+
+DatasetTransform = OCRTransform | ImageTransform
