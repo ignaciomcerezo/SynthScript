@@ -72,7 +72,7 @@ class OCRDataset(BaseAnnotationDataset):
 
     def __repr__(self):
         return (
-            f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)}"
+            f"<OCRDataset {len(self)} samples: {len(self._annotated_pages)}"
             f" pages using orders {self.orders}>"
         )
 

@@ -39,11 +39,20 @@ def _page_schema() -> etree.XMLSchema:
     return etree.XMLSchema(schema_document)
 
 
-def validate_page_xml(path: Path) -> None:
-    """Validate a PAGE document against the bundled 2024-07-15 XSD."""
-    document = parse_xml_document(Path(path))
+def validate_page_xml_document(
+    document: etree._ElementTree,
+    path: Path,
+) -> None:
+    """Validate an already parsed PAGE document against the bundled schema."""
     schema = _page_schema()
     if not schema.validate(document):
         error = schema.error_log.last_error
         detail = error.message if error is not None else "unknown schema error"
         raise PageXMLValidationError(f"PAGE-XML validation failed for {path}: {detail}")
+
+
+def validate_page_xml(path: Path) -> None:
+    """Validate a PAGE document against the bundled 2024-07-15 XSD."""
+    path = Path(path)
+    document = parse_xml_document(path)
+    validate_page_xml_document(document, path)

@@ -9,6 +9,7 @@ import numpy as np
 from shapely.affinity import scale as scale_geometry
 
 from synthscript.loading.page_xml.constants import (
+    LABEL_STUDIO_TASK_ID,
     PAGE_NS,
     PAGE_XML_CREATED,
     PAGE_XML_CREATOR,
@@ -26,11 +27,12 @@ from synthscript.loading.page_xml.helpers import (
 )
 from synthscript.loading.page_xml.validation import (
     parse_xml_document,
-    validate_page_xml,
+    validate_page_xml_document,
 )
 from synthscript.metric.homogenizer.homogenizer import TextHomogenizer
 from synthscript.ocr_units import OCRPage
 from synthscript.shared.geometry_processing import calculate_reading_angle
+from synthscript.shared.image_handling import read_image_shape
 from synthscript.shared.path_bundle import PathBundle
 
 _WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[/\\]")
@@ -128,9 +130,11 @@ def _line_elements(region: etree._Element) -> list[etree._Element]:
                 enumerate(lines),
                 key=lambda item: (
                     parsed_indices[item[0]] is None,
-                    parsed_indices[item[0]]
-                    if parsed_indices[item[0]] is not None
-                    else item[0],
+                    (
+                        parsed_indices[item[0]]
+                        if parsed_indices[item[0]] is not None
+                        else item[0]
+                    ),
                 ),
             )
         ]
@@ -231,9 +235,7 @@ def _load_images(
     raw_filename = page_element.get("imageFilename")
     if not raw_filename:
         raise ValueError("PAGE imageFilename is missing.")
-    raw = PathBundle.load_image_grayscale_np(
-        _resolve_image_path(xml_path, raw_filename)
-    )
+    raw_path = _resolve_image_path(xml_path, raw_filename)
 
     alternatives: dict[str, np.ndarray] = {}
     for alternative in page_element.findall(page_tag("AlternativeImage")):
@@ -251,17 +253,24 @@ def _load_images(
 
     stroke = alternatives.get(SYNTHSCRIPT_STROKE_IMAGE)
     background = alternatives.get(SYNTHSCRIPT_BACKGROUND_IMAGE)
+    raw: np.ndarray | None = None
+    if stroke is not None and background is not None:
+        raw_shape = read_image_shape(raw_path)
+    else:
+        raw = PathBundle.load_image_grayscale_np(raw_path)
+        raw_shape = raw.shape[:2]
     expected = (
         int(page_element.get("imageHeight", "-1")),
         int(page_element.get("imageWidth", "-1")),
     )
-    if raw.shape[:2] != expected:
+    if raw_shape != expected:
         raise ValueError(
-            f"Raw image dimensions {raw.shape[:2]} do not match PAGE dimensions "
+            f"Raw image dimensions {raw_shape} do not match PAGE dimensions "
             f"{expected}."
         )
 
     if stroke is None and background is None:
+        assert raw is not None
         background = np.full_like(raw, 255)
         stroke = np.subtract(background, raw)
     else:
@@ -273,15 +282,17 @@ def _load_images(
         if background is not None and background.shape[:2] != target_shape:
             raise ValueError("Stroke and background alternative image sizes differ.")
         target_height, target_width = target_shape
-        resized_raw = (
-            raw
-            if raw.shape[:2] == target_shape
-            else cv2.resize(
-                raw,
-                (target_width, target_height),
-                interpolation=cv2.INTER_AREA,
+        if stroke is None or background is None:
+            assert raw is not None
+            resized_raw = (
+                raw
+                if raw.shape[:2] == target_shape
+                else cv2.resize(
+                    raw,
+                    (target_width, target_height),
+                    interpolation=cv2.INTER_AREA,
+                )
             )
-        )
 
     if stroke is None:
         assert background is not None
@@ -304,17 +315,35 @@ def _load_images(
     )
 
 
-def load_page_xml(
+def page_xml_identity(document: etree._ElementTree) -> tuple[str, int | None]:
+    """Return the page and LabelStudio task identities from a (parsed) document"""
+    root = document.getroot()
+    if etree.QName(root).namespace != PAGE_NS:
+        raise ValueError(f"Unsupported PAGE namespace {etree.QName(root).namespace!r}.")
+
+    metadata = _metadata(root)
+    page_element = root.find(page_tag("Page"))
+    if page_element is None:
+        raise ValueError("PAGE document has no Page element.")
+
+    raw_filename = page_element.get("imageFilename", "page")
+    page_id = metadata.get(SYNTHSCRIPT_PAGE_ID, PurePosixPath(raw_filename).stem)
+    raw_task_id = metadata.get(LABEL_STUDIO_TASK_ID)
+    try:
+        task_id = int(raw_task_id) if raw_task_id is not None else None
+    except ValueError:
+        task_id = None
+    return page_id, task_id
+
+
+def load_page_xml_document(
+    document: etree._ElementTree,
     xml_path: Path,
-    paths: PathBundle,
     *,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
 ) -> OCRPage:
-    """Load the supported PAGE subset into SynthScript's in-memory model."""
-    del paths  # Image references are intentionally resolved relative to the XML file.
-    xml_path = Path(xml_path)
-    validate_page_xml(xml_path)
-    document = parse_xml_document(xml_path)
+    """Load a parsed PAGE document into SynthScript's in-memory model."""
+    validate_page_xml_document(document, xml_path)
     root = document.getroot()
     if etree.QName(root).namespace != PAGE_NS:
         raise ValueError(f"Unsupported PAGE namespace {etree.QName(root).namespace!r}.")
@@ -408,4 +437,21 @@ def load_page_xml(
         metadata=metadata,
         paragraph_line_ids=paragraph_line_ids,
         paragraph_ids=paragraph_ids,
+    )
+
+
+def load_page_xml(
+    xml_path: Path,
+    paths: PathBundle,
+    *,
+    transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
+) -> OCRPage:
+    """Load the supported PAGE subset into SynthScript's in-memory model."""
+    del paths  # Image references are intentionally resolved relative to the XML file.
+    xml_path = Path(xml_path)
+    document = parse_xml_document(xml_path)
+    return load_page_xml_document(
+        document,
+        xml_path,
+        transcription_homogenizer=transcription_homogenizer,
     )

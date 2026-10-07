@@ -1,6 +1,6 @@
 import numpy as np
 
-from synthscript.transforms.paragraph_transforms.warps._directional_warp import (
+from synthscript.transforms.paragraph.warps._directional_warp import (
     _DirectionalArchWarp,
 )
 

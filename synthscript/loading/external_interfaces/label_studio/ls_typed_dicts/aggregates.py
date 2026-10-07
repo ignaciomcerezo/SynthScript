@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Union
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
@@ -19,12 +19,9 @@ ResultItem = Annotated[
     Field(discriminator="type"),
 ]
 
-ResultItemNotRelation = Union[
-    TextRegionResult,
-    TextCorrectionResult,
-    RectangleResult,
-    PolygonResult,
-]
+ResultItemNotRelation = (
+    TextRegionResult | TextCorrectionResult | RectangleResult | PolygonResult
+)
 
 
 class RawAnnotation(BaseModel):

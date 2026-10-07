@@ -6,6 +6,7 @@ import numpy as np
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _PNG_IHDR_CHUNK_LENGTH = b"\x00\x00\x00\r"
 _PNG_IHDR_CHUNK_TYPE = b"IHDR"
+_PNG_DIMENSION_HEADER_LENGTH = 24
 _PNG_COLOR_TYPE_OFFSET = 25
 _PNG_GRAYSCALE_COLOR_TYPE = 0
 
@@ -35,6 +36,25 @@ def decode_image_grayscale(encoded_image: bytes | np.ndarray) -> np.ndarray:
 def load_image_grayscale(path: Path) -> np.ndarray:
     """Load an image as grayscale through a Windows-path-safe byte decode."""
     return decode_image_grayscale(np.fromfile(path, dtype=np.uint8))
+
+
+def read_image_shape(path: Path) -> tuple[int, int]:
+    """Read an image height and width using the PNG header if possible"""
+    with path.open("rb") as image_file:
+        header = image_file.read(_PNG_DIMENSION_HEADER_LENGTH)
+
+    if (
+        len(header) == _PNG_DIMENSION_HEADER_LENGTH
+        and header.startswith(_PNG_SIGNATURE)
+        and header[8:12] == _PNG_IHDR_CHUNK_LENGTH
+        and header[12:16] == _PNG_IHDR_CHUNK_TYPE
+    ):
+        width = int.from_bytes(header[16:20], byteorder="big")
+        height = int.from_bytes(header[20:24], byteorder="big")
+        if width > 0 and height > 0:
+            return height, width
+
+    return load_image_grayscale(path).shape[:2]
 
 
 def write_encoded_image_grayscale(path: Path, encoded_image: bytes) -> None:
