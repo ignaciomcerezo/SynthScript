@@ -82,7 +82,7 @@ class CollageArtist:
         overlay_mbr: bool = False,
     ):
         self.configure(
-            tight_layout=tight_layout,
+            use_tight_layout=tight_layout,
             margin_size_px=margin_size_px,
             img_poly_transform=img_poly_transform,
             stroke_transform=stroke_transform,
@@ -96,28 +96,51 @@ class CollageArtist:
     def configure(
         self,
         *,
-        tight_layout: bool,
+        use_tight_layout: bool | None = None,
         margin_size_px: (
             int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
-        ),
-        img_poly_transform: OCRTransformCallable | None,
-        stroke_transform: StrokeTransformCallable | None,
-        background_transform: ImageTransformCallable | None,
-        global_image_transform: ImageTransformCallable | None,
-        refit_polygons: bool = True,
-        overlay_polygons: bool,
-        overlay_mbr: bool,
+        ) | None = None,
+        img_poly_transform: OCRTransformCallable | None = None,
+        stroke_transform: StrokeTransformCallable | None = None,
+        background_transform: ImageTransformCallable | None = None,
+        global_image_transform: ImageTransformCallable | None = None,
+        refit_polygons: bool | None = None,
+        overlay_polygons: bool | None = None,
+        overlay_mbr: bool | None = None,
     ) -> None:
-        self.tight_layout = tight_layout
-        self._configure_margins(margin_size_px)
 
-        self.img_poly_transform = img_poly_transform
-        self.stroke_transform = stroke_transform
-        self.background_transform = background_transform
-        self.global_image_transform = global_image_transform
-        self.refit_polygons = refit_polygons
-        self.overlay_polygons = overlay_polygons
-        self.overlay_mbr = overlay_mbr
+        self.tight_layout = (
+            use_tight_layout if use_tight_layout is not None else self.tight_layout
+        )
+        self._configure_margins(
+            margin_size_px if margin_size_px is not None else self.margin_sizes
+        )
+
+        self.img_poly_transform = (
+            img_poly_transform
+            if img_poly_transform is not None
+            else self.img_poly_transform
+        )
+        self.stroke_transform = (
+            stroke_transform if stroke_transform is not None else self.stroke_transform
+        )
+        self.background_transform = (
+            background_transform
+            if background_transform is not None
+            else self.background_transform
+        )
+        self.global_image_transform = (
+            global_image_transform
+            if global_image_transform is not None
+            else self.global_image_transform
+        )
+        self.refit_polygons = (
+            refit_polygons if refit_polygons is not None else self.refit_polygons
+        )
+        self.overlay_polygons = (
+            overlay_polygons if overlay_polygons is not None else self.overlay_polygons
+        )
+        self.overlay_mbr = overlay_mbr if overlay_mbr is not None else self.overlay_mbr
 
     def _configure_margins(
         self,

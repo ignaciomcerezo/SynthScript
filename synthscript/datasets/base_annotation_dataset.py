@@ -50,8 +50,6 @@ class ClusterParams:
     )
     use_previous_page_in_context: bool = False
     avoid_intersections: bool = True
-    overlay_polygons: bool = False
-    overlay_mbr: bool = False
 
 
 class BaseAnnotationDataset(Dataset, ABC):
@@ -125,14 +123,12 @@ class BaseAnnotationDataset(Dataset, ABC):
         """Updates the dataset renderer aligned with the current configuration"""
         if hasattr(self, "_renderer"):
             self._renderer.configure(
-                tight_layout=self.cluster_params.tight_layout,
+                use_tight_layout=self.cluster_params.tight_layout,
                 margin_size_px=self.cluster_params.margin_size_px,
                 img_poly_transform=self._transforms,
                 stroke_transform=self._image_transforms.transform_strokes,
                 background_transform=self._image_transforms.transform_background,
                 global_image_transform=self._image_transforms.transform_global_image,
-                overlay_polygons=self.cluster_params.overlay_polygons,
-                overlay_mbr=self.cluster_params.overlay_mbr,
             )
         else:
             self._renderer = CollageArtist(
@@ -142,8 +138,8 @@ class BaseAnnotationDataset(Dataset, ABC):
                 stroke_transform=self._image_transforms.transform_strokes,
                 background_transform=self._image_transforms.transform_background,
                 global_image_transform=self._image_transforms.transform_global_image,
-                overlay_polygons=self.cluster_params.overlay_polygons,
-                overlay_mbr=self.cluster_params.overlay_mbr,
+                overlay_polygons=False,
+                overlay_mbr=False,
             )
 
     @orders.setter
