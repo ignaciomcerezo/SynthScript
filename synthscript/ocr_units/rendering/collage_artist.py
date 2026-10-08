@@ -21,13 +21,10 @@ ImageTransformCallable = Callable[[np.ndarray], np.ndarray]
 
 class Margins:
     def __init__(self, *, left: int, right: int, bottom: int, top: int):
-        if min(left, right, bottom, top) < 0:
-            raise ValueError(f"Margins must be all positive, but got: {self}")
-
-        self._left = left
-        self._right = right
-        self._bottom = bottom
-        self._top = top
+        self.left = left
+        self.right = right
+        self.bottom = bottom
+        self.top = top
 
     @property
     def left(self) -> int:
@@ -36,7 +33,8 @@ class Margins:
     @left.setter
     def left(self, value: int) -> None:
         if value < 0:
-            raise ValueError("Margin sizes must all be positive.")
+            raise ValueError("Margin sizes must all be non-negative.")
+        self._left = value
 
     @property
     def right(self) -> int:
@@ -45,7 +43,8 @@ class Margins:
     @right.setter
     def right(self, value: int) -> None:
         if value < 0:
-            raise ValueError("Margin sizes must all be positive.")
+            raise ValueError("Margin sizes must all be non-negative.")
+        self._right = value
 
     @property
     def top(self) -> int:
@@ -54,7 +53,8 @@ class Margins:
     @top.setter
     def top(self, value: int) -> None:
         if value < 0:
-            raise ValueError("Margin sizes must all be positive.")
+            raise ValueError("Margin sizes must all be non-negative.")
+        self._top = value
 
     @property
     def bottom(self) -> int:
@@ -63,14 +63,15 @@ class Margins:
     @bottom.setter
     def bottom(self, value: int) -> None:
         if value < 0:
-            raise ValueError("Margin sizes must all be positive.")
+            raise ValueError("Margin sizes must all be non-negative.")
+        self._bottom = value
 
 
 class CollageArtist:
     def __init__(
         self,
         tight_layout: bool = True,
-        margin_size_px: (
+        margins: (
             int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
         ) = 0,
         img_poly_transform: OCRTransformCallable | None = None,
@@ -81,110 +82,51 @@ class CollageArtist:
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
     ):
-        self.configure(
-            use_tight_layout=tight_layout,
-            margin_size_px=margin_size_px,
-            img_poly_transform=img_poly_transform,
-            stroke_transform=stroke_transform,
-            background_transform=background_transform,
-            global_image_transform=global_image_transform,
-            refit_polygons=refit_polygons,
-            overlay_polygons=overlay_polygons,
-            overlay_mbr=overlay_mbr,
-        )
-
-    def configure(
-        self,
-        *,
-        use_tight_layout: bool | None = None,
-        margin_size_px: (
-            int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
-        ) | None = None,
-        img_poly_transform: OCRTransformCallable | None = None,
-        stroke_transform: StrokeTransformCallable | None = None,
-        background_transform: ImageTransformCallable | None = None,
-        global_image_transform: ImageTransformCallable | None = None,
-        refit_polygons: bool | None = None,
-        overlay_polygons: bool | None = None,
-        overlay_mbr: bool | None = None,
-    ) -> None:
-
-        self.tight_layout = (
-            use_tight_layout if use_tight_layout is not None else self.tight_layout
-        )
-        self._configure_margins(
-            margin_size_px if margin_size_px is not None else self.margin_sizes
-        )
-
-        self.img_poly_transform = (
-            img_poly_transform
-            if img_poly_transform is not None
-            else self.img_poly_transform
-        )
-        self.stroke_transform = (
-            stroke_transform if stroke_transform is not None else self.stroke_transform
-        )
-        self.background_transform = (
-            background_transform
-            if background_transform is not None
-            else self.background_transform
-        )
-        self.global_image_transform = (
-            global_image_transform
-            if global_image_transform is not None
-            else self.global_image_transform
-        )
-        self.refit_polygons = (
-            refit_polygons if refit_polygons is not None else self.refit_polygons
-        )
-        self.overlay_polygons = (
-            overlay_polygons if overlay_polygons is not None else self.overlay_polygons
-        )
-        self.overlay_mbr = overlay_mbr if overlay_mbr is not None else self.overlay_mbr
+        self.tight_layout = tight_layout
+        self._configure_margins(margins)
+        self.img_poly_transform = img_poly_transform
+        self.stroke_transform = stroke_transform
+        self.background_transform = background_transform
+        self.global_image_transform = global_image_transform
+        self.refit_polygons = refit_polygons
+        self.overlay_polygons = overlay_polygons
+        self.overlay_mbr = overlay_mbr
 
     def _configure_margins(
         self,
-        margin_size_px: (
-            int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
-        ),
+        margins: int | dict[Literal["left", "right", "top", "bottom"], int] | Margins,
     ) -> None:
-        if isinstance(margin_size_px, Margins):
-            self._margin_sizes = margin_size_px
-            return
+        if isinstance(margins, Margins):
+            margin_sizes = {
+                "left": margins.left,
+                "right": margins.right,
+                "top": margins.top,
+                "bottom": margins.bottom,
+            }
+        else:
+            margin_sizes = {
+                "left": (margins["left"] if isinstance(margins, dict) else margins),
+                "right": (
+                    margins["right"] if isinstance(margins, dict) else margins
+                ),
+                "top": (margins["top"] if isinstance(margins, dict) else margins),
+                "bottom": (
+                    margins["bottom"] if isinstance(margins, dict) else margins
+                ),
+            }
 
-        margin_sizes = {
-            "left": (
-                margin_size_px["left"]
-                if isinstance(margin_size_px, dict)
-                else margin_size_px
-            ),
-            "right": (
-                margin_size_px["right"]
-                if isinstance(margin_size_px, dict)
-                else margin_size_px
-            ),
-            "top": (
-                margin_size_px["top"]
-                if isinstance(margin_size_px, dict)
-                else margin_size_px
-            ),
-            "bottom": (
-                margin_size_px["bottom"]
-                if isinstance(margin_size_px, dict)
-                else margin_size_px
-            ),
-        }
-        if not all(val >= 0 for val in margin_sizes.values()):
-            raise ValueError("The margin size cannot be negative.")
-        self._margin_sizes = Margins(**margin_sizes)
+        self._margins = Margins(**margin_sizes)
 
     @property
-    def margin_sizes(self) -> Margins:
-        return self._margin_sizes
+    def margins(self) -> Margins:
+        return self._margins
 
-    @margin_sizes.setter
-    def margin_sizes(
-        self, value: int | dict[Literal["left", "right", "top", "bottom"], int]
+    @margins.setter
+    def margins(
+        self,
+        value: (
+            int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
+        ),
     ) -> None:
         self._configure_margins(value)
 
@@ -248,16 +190,16 @@ class CollageArtist:
         bg_h, bg_w = image_dimensions
 
         if self.tight_layout:
-            x0 = int(min_x) - self._margin_sizes.left
-            xf = int(max_x) + 1 + self._margin_sizes.right
-            y0 = int(min_y) - self._margin_sizes.top
-            yf = int(max_y) + 1 + self._margin_sizes.bottom
+            x0 = int(min_x) - self._margins.left
+            xf = int(max_x) + 1 + self._margins.right
+            y0 = int(min_y) - self._margins.top
+            yf = int(max_y) + 1 + self._margins.bottom
             can_crop = True
         else:
-            x0 = min(0, int(min_x) - self._margin_sizes.left)
-            xf = max(bg_w, int(max_x) + 1 + self._margin_sizes.right)
-            y0 = min(0, int(min_y) - self._margin_sizes.top)
-            yf = max(bg_h, int(max_y) + 1 + self._margin_sizes.bottom)
+            x0 = min(0, int(min_x) - self._margins.left)
+            xf = max(bg_w, int(max_x) + 1 + self._margins.right)
+            y0 = min(0, int(min_y) - self._margins.top)
+            yf = max(bg_h, int(max_y) + 1 + self._margins.bottom)
             can_crop = False
 
         bg_np = np.asarray(background)

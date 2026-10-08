@@ -7,7 +7,7 @@ from unsloth import FastVisionModel  # ty: ignore[unresolved-import]
 @dataclass(kw_only=True, slots=True, frozen=True)
 class AdapterParameters:
     """
-    Parámetros para el adaptador de LoRA
+    LoRA adapter parameters.
     """
 
     model: Any
@@ -25,7 +25,7 @@ class AdapterParameters:
 
     def to_dict(self) -> dict:
         """
-        Convierte a un diccionario serializable para poder subirlo con el dataset.
+        Returns a serializable dictionary to be uploaded with the trained model.
         """
         result = {}
         for field in fields(self):

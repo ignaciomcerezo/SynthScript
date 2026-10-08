@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
@@ -42,12 +42,9 @@ RNGInput = np.random.Generator | int | None
 T = TypeVar("T", bound="BaseAnnotationDataset")
 
 
-@dataclass
+@dataclass(slots=True)
 class ClusterParams:
     tight_layout: bool = True
-    margin_size_px: int | dict[Literal["left", "right", "top", "bottom"], int] = field(
-        default_factory=lambda: {"left": 0, "right": 0, "top": 0, "bottom": 0}
-    )
     use_previous_page_in_context: bool = False
     avoid_intersections: bool = True
 
@@ -122,18 +119,19 @@ class BaseAnnotationDataset(Dataset, ABC):
     def _sync_renderer(self) -> None:
         """Updates the dataset renderer aligned with the current configuration"""
         if hasattr(self, "_renderer"):
-            self._renderer.configure(
-                use_tight_layout=self.cluster_params.tight_layout,
-                margin_size_px=self.cluster_params.margin_size_px,
-                img_poly_transform=self._transforms,
-                stroke_transform=self._image_transforms.transform_strokes,
-                background_transform=self._image_transforms.transform_background,
-                global_image_transform=self._image_transforms.transform_global_image,
+            self._renderer.tight_layout = self.cluster_params.tight_layout
+            self._renderer.img_poly_transform = self._transforms
+            self._renderer.stroke_transform = self._image_transforms.transform_strokes
+            self._renderer.background_transform = (
+                self._image_transforms.transform_background
+            )
+            self._renderer.global_image_transform = (
+                self._image_transforms.transform_global_image
             )
         else:
             self._renderer = CollageArtist(
                 tight_layout=self.cluster_params.tight_layout,
-                margin_size_px=self.cluster_params.margin_size_px,
+                margins=0,
                 img_poly_transform=self._transforms,
                 stroke_transform=self._image_transforms.transform_strokes,
                 background_transform=self._image_transforms.transform_background,
