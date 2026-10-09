@@ -44,8 +44,8 @@ def _styled_text(style: str, text: str) -> CanonicalNode:
 
 # argumentless commands where values may be subtrees or tuples of siblign subtrees
 ARGUMENTLESS_MACRO_REPLACEMENTS: dict[str, CanonicalReplacement] = {
-    "E": _styled_text("mathcal", "E"),
-    "U": _styled_text("mathcal", "U"),
+    # "E": _styled_text("mathcal", "E"),
+    # "U": _styled_text("mathcal", "U"),
 }
 
 # replacements selected and triggered by a macro name and its single plain-text argument

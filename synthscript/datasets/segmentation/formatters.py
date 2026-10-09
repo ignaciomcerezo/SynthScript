@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from shapely import MultiPolygon, Polygon
 
-_formatter_type = Callable[[np.ndarray, Sequence[Polygon]], Any]
+_formatter_type = Callable[[np.ndarray, Sequence[Polygon], int], Any]
 
 
 def _polygon_to_mask(poly: Polygon | MultiPolygon, h: int, w: int) -> np.ndarray:

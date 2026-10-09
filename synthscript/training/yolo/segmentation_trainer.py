@@ -5,7 +5,7 @@ from ultralytics.models.yolo.segment.train import (  # ty: ignore[unresolved-imp
 )
 
 from synthscript.datasets.segmentation.segmentation_dataset import SegmentationDataset
-from synthscript.training.yolo.dataset import _SegmentationLineDataset
+from synthscript.training.yolo.formatters import YOLOSegmentationFormatter
 
 
 class SegmentationDatasetTrainer(SegmentationTrainer):
@@ -13,6 +13,8 @@ class SegmentationDatasetTrainer(SegmentationTrainer):
     A `SegmentationTrainer` that pulls train/val batches from two
     `SegmentationDataset` instances instead of a YOLO-format images/labels folder
     described by a data.yaml.
+    A YOLOSegmentationFormatter is assigned when dataset.formatter is None; an
+    explicitly assigned formatter is preserved.
 
     Example usage:
         trainer = SegmentationDatasetTrainer(overrides=dict(
@@ -51,10 +53,19 @@ class SegmentationDatasetTrainer(SegmentationTrainer):
         seg_ds = self.train_seg_dataset if mode == "train" else self.val_seg_dataset
         if seg_ds is None:
             raise RuntimeError(
-                f"trainer.{mode}_seg_dataset is not set -- assign your SegmentationDataset "
-                f"instances before calling .train()."
+                f"trainer.{mode}_seg_dataset is not set -- assign your "
+                "SegmentationDataset instances before calling .train()."
             )
-        return _SegmentationLineDataset(seg_ds, imgsz=self.args.imgsz)
+        if seg_ds.formatter is None:
+            seg_ds.formatter = YOLOSegmentationFormatter(
+                imgsz=self.args.imgsz,
+                mask_ratio=self.args.mask_ratio,
+                overlap_mask=self.args.overlap_mask,
+            )
+        return seg_ds
+
+    def plot_training_labels(self):
+        """Skip static label plots because synthetic labels are generated on access."""
 
     def final_eval(self):
         print("Skipping final_eval re-validation.")

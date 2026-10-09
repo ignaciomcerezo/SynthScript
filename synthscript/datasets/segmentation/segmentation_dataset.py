@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import asdict, replace
+from typing import Any
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -11,6 +12,7 @@ from synthscript.datasets.base_annotation_dataset import (
 )
 from synthscript.datasets.image_transform_pack import ImageTransformPack
 from synthscript.datasets.ocr_transform_pack import OCRTransformPack
+from synthscript.datasets.segmentation.formatters import _formatter_type
 from synthscript.ocr_units import OCRPage
 
 
@@ -43,6 +45,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._image_transforms = ImageTransformPack(rng=self.rng)
         self._recalculate_size_and_sampling_params()
         self.return_bounding_boxes = return_bounding_boxes
+        self._formatter: _formatter_type | None = None
 
         self._cluster_params = (
             replace(ClusterParams(), **asdict(cluster_transform_params))
@@ -58,10 +61,17 @@ class SegmentationDataset(BaseAnnotationDataset):
             f" pages using orders {self.orders})>"
         )
 
-    def __getitem__(self, index: int) -> tuple[np.ndarray, list[Polygon]]:
+    def __getitem__(self, index: int) -> Any:
+        image, polygons = self.getitem_no_formatter(index)
+        if self._formatter is None:
+            return image, polygons
+        return self._formatter(image, polygons, index)
+
+    def getitem_no_formatter(self, index: int) -> tuple[np.ndarray, list[Polygon]]:
         """
         Chooses a line cluster/paragraph/full page according to the available orders.
         Each sample is chosen uniformly, and applies the layout transforms defined.
+        The formatter is not applied.
         """
         page, selected_line_ids, _, _ = self._gets_ann_ids_order_and_identifier(index)
 
@@ -71,3 +81,21 @@ class SegmentationDataset(BaseAnnotationDataset):
             return image, polygons
         else:
             return image, [polygon.minimum_rotated_rectangle for polygon in polygons]
+
+    @property
+    def formatter(self) -> _formatter_type | None:
+        """Optional callable receiving (image, polygons, index) after rendering."""
+        return self._formatter
+
+    @formatter.setter
+    def formatter(self, value: _formatter_type | None) -> None:
+        self._formatter = value
+
+    def collate_fn(self, batch):
+        """Use the formatter's collator if provided, otherwise PyTorch's default"""
+        collator = getattr(self._formatter, "collate_fn", None)
+        if collator is None:
+            from torch.utils.data import default_collate
+
+            collator = default_collate
+        return collator(batch)

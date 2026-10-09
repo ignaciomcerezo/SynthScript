@@ -30,11 +30,7 @@ def load_pages(
     )
     wanted_tasks = set(tasks) if tasks is not None else None
     wanted_pages = {str(page) for page in pages} if pages is not None else None
-    homogenizer = (
-        ASTHomogenizer()
-        if transcription_homogenizer is None
-        else transcription_homogenizer
-    )
+    homogenizer = transcription_homogenizer or ASTHomogenizer()
 
     def acceptable(page_id: str, task_id: int | None) -> bool:
         matches_page = wanted_pages is not None and page_id in wanted_pages
