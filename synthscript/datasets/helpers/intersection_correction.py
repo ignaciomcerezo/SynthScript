@@ -19,6 +19,10 @@ def avoid_line_intersections(
     if n <= 1:
         return polygons
 
+    adjacent_distances = shapely.distance(polygons[:-1], polygons[1:])
+    if np.all(adjacent_distances >= delta):
+        return polygons
+
     lg_info = LineGroupInfo.from_polygons(polygons)
     original_center = lg_info.center
     reading_dir = lg_info.reading_direction
@@ -34,7 +38,7 @@ def avoid_line_intersections(
 
     pairwise_displacements = np.zeros(n, dtype=float)
     for i in range(1, n):
-        true_gap = polygons[i - 1].distance(polygons[i])
+        true_gap = adjacent_distances[i - 1]
         if true_gap < delta:
             overlap = right_extent[i - 1] - left_extent[i] + delta
             if overlap > 0:
@@ -104,7 +108,7 @@ def avoid_line_intersections(
                 for prepared_prev, (pbx0, pby0, pbx1, pby1) in active_candidates:
                     if cbx0 <= pbx1 and cbx1 >= pbx0 and cby0 <= pby1 and cby1 >= pby0:
                         if candidate is None:
-                            candidate = Polygon(base_coords + (off_x, off_y))
+                            candidate = shapely.polygons(base_coords + (off_x, off_y))
                         if prepared_prev.intersects(candidate):
                             return True
                 return False
@@ -114,6 +118,8 @@ def avoid_line_intersections(
             else:
                 lo, hi = 0.0, max_reversal
                 for _ in range(binary_iterations):
+                    if hi - lo <= 1e-3:
+                        break
                     mid = 0.5 * (lo + hi)
                     if intersects_previous(mid):
                         hi = mid
@@ -138,7 +144,8 @@ def avoid_line_intersections(
             by1 + movement[1],
         ]
 
-    new_center = LineGroupInfo.from_polygons(polygons).center
+    bounds = shapely.bounds(polygons)
+    new_center = (bounds[:, :2].min(axis=0) + bounds[:, 2:].max(axis=0)) / 2
     center_shift_x = original_center[0] - new_center[0]
     center_shift_y = original_center[1] - new_center[1]
 
@@ -170,6 +177,8 @@ def avoid_paragraph_intersections(
     )
 
     for polygon_group, shift in zip(polygon_groups, shifts, strict=True):
+        if not np.any(shift):
+            continue
         for i in range(len(polygon_group)):
             polygon_group[i] = translate(polygon_group[i], shift[0], shift[1])
 

@@ -53,7 +53,8 @@ class OCRTransformPack:
     @property
     def may_cause_intersections(self) -> bool:
         return any(
-            transform.may_cause_intersections for transform in self._all_transforms()
+            transform.probability > 0 and transform.may_cause_intersections
+            for transform in self._all_transforms()
         )
 
     def add_transform(

@@ -8,7 +8,7 @@ import numpy as np
 from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
 from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
-from synthscript.ocr_units.rendering import CollageArtist
+from synthscript.rendering import CollageArtist
 from synthscript.transforms.transforms import (
     BackgroundTransform,
     DatasetTransform,
