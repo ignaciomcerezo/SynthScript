@@ -4,7 +4,6 @@ import cv2
 import numpy as np
 from shapely.affinity import translate
 
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
 from synthscript.shared.geometry_processing import get_union_rect
 from synthscript.transforms import (
@@ -12,15 +11,20 @@ from synthscript.transforms import (
     PageTransform,
     ParagraphTransform,
 )
-from synthscript.transforms.transforms import OCRTransform
+from synthscript.transforms.image_transform_pack import ImageTransformPack
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
+from synthscript.transforms.transforms import (
+    BackgroundTransform,
+    DatasetTransform,
+    GlobalImageTransform,
+    OCRTransform,
+    StrokeTransform,
+)
 
 
 class LayoutGenerator:
-    """Generate transformed OCRPage objects with an OCRTransformPack.
-
-    Unlike OCRDataset, which applies its pack to each requested sample, a layout
-    generator applies the pack to every line and builds a new page annotation
-    from the returned crops and polygons.
+    """
+    Generates new OCRPage instances by applying a transform pack to them.
     """
 
     def __init__(
@@ -28,63 +32,78 @@ class LayoutGenerator:
         avoid_line_intersections: bool = True,
         rng: np.random.Generator | int | None = None,
     ):
-        # Retain the old argument name for compatibility. OCRTransformPack also
-        # handles intersections between paragraphs.
-        self._avoid_intersections = avoid_line_intersections
-        self._transforms = OCRTransformPack(
+        self._mixed_transforms = OCRTransformPack(
             avoid_intersections=avoid_line_intersections,
             rng=rng,
         )
+        self._pure_image_transforms = ImageTransformPack(rng=self._mixed_transforms.rng)
 
     @property
     def rng(self) -> np.random.Generator:
-        return self._transforms.rng
+        return self._mixed_transforms.rng
 
     @rng.setter
     def rng(self, value: np.random.Generator | int | None) -> None:
-        self._transforms.rng = value
+        self._mixed_transforms.rng = value
+        self._pure_image_transforms.rng = self._mixed_transforms.rng
 
     @property
     def transforms(self) -> OCRTransformPack | None:
-        if self._transforms.is_identity:
+        if self._mixed_transforms.is_identity:
             return None
-        return self._transforms
+        return self._mixed_transforms
 
     def add_transform(
         self,
-        transform: OCRTransform | None,
+        transform: DatasetTransform | None,
     ) -> None:
         """Append a transform, using the same interface as OCRDataset."""
-        if transform is not None:
-            self._transforms.add_transform(transform)
+
+        if isinstance(transform, OCRTransform):
+            self._mixed_transforms.add_transform(transform)
+        elif transform is not None:
+            self._pure_image_transforms.add_transform(transform)
+
+    @property
+    def avoid_intersections(self) -> bool:
+        return self._mixed_transforms.avoid_intersections
+
+    @avoid_intersections.setter
+    def avoid_intersections(self, value: bool) -> None:
+        self._mixed_transforms.avoid_intersections = value
 
     def set_transform(
         self,
-        *transforms: OCRTransform | None,
-        avoid_intersections: bool = True,
+        *transforms: DatasetTransform | None,
     ) -> None:
         """Replace all transforms, using the same interface as OCRDataset."""
+
         for transform in transforms:
             if transform is not None and not isinstance(
                 transform,
-                (LineTransform, ParagraphTransform, PageTransform),
+                (
+                    LineTransform,
+                    ParagraphTransform,
+                    PageTransform,
+                    StrokeTransform,
+                    BackgroundTransform,
+                    GlobalImageTransform,
+                ),
             ):
-                raise ValueError(
-                    "Only accepts LinewiseTransform, IntraparagraphTransform or "
-                    f"InterparagraphTransform, got {type(transform)}"
-                )
+                raise ValueError(f"Unsupported transform type {type(transform)}")
 
-        self._transforms = OCRTransformPack(
-            avoid_intersections=avoid_intersections, rng=self._transforms.rng
+        self._mixed_transforms = OCRTransformPack(
+            avoid_intersections=self._mixed_transforms.avoid_intersections,
+            rng=self.rng,
         )
+        self._pure_image_transforms = ImageTransformPack(rng=self.rng)
 
         for transform in transforms:
-            if transform is not None:
-                self._transforms.add_transform(transform)
+            self.add_transform(transform)
 
-    def apply(self, annotation: OCRPage) -> OCRPage:
+    def apply(self, ocr_page: OCRPage) -> OCRPage:
         """Return a new page made from the transform pack's crops and polygons."""
-        new_annotation = deepcopy(annotation)
+        new_annotation = deepcopy(ocr_page)
         if not new_annotation.lines:
             return new_annotation
 
@@ -96,7 +115,7 @@ class LayoutGenerator:
             for lines in lines_by_paragraph
         ]
 
-        crops, polygons = self._transforms(paragraph_equivalents)
+        crops, polygons = self._mixed_transforms(paragraph_equivalents)
         lines = [line for paragraph in lines_by_paragraph for line in paragraph]
         if len(crops) != len(lines) or len(polygons) != len(lines):
             raise ValueError("Layout transforms must preserve the number of OCR lines.")

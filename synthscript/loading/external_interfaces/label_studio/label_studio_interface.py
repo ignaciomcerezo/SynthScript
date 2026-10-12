@@ -6,6 +6,7 @@ from urllib.parse import unquote as url_unquote
 from label_studio_sdk import Client
 from shapely import make_valid
 from shapely.geometry import Polygon
+from tqdm.auto import tqdm
 
 from synthscript.loading.page_xml import save_page_xml
 from synthscript.loading.page_xml.constants import (
@@ -237,7 +238,7 @@ class LabelStudioInterface(ExternalInterface):
 
         tasks = self.fetch_simplified_tasks()
 
-        for task in tasks:
+        for task in tqdm(tasks, desc="Converting pages into XML format..."):
             image_url = task.data.image_url
             task_id = task.id
             page = Path(url_unquote(image_url)).stem

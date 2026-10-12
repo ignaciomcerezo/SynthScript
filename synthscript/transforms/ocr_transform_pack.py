@@ -4,14 +4,14 @@ import operator
 import numpy as np
 from shapely.geometry import Polygon
 
-from synthscript.datasets.helpers.intersection_correction import (
-    avoid_line_intersections,
-    avoid_paragraph_intersections,
-)
 from synthscript.transforms import (
     LineTransform,
     PageTransform,
     ParagraphTransform,
+)
+from synthscript.transforms.helpers.intersection_correction import (
+    avoid_line_intersections,
+    avoid_paragraph_intersections,
 )
 from synthscript.transforms.transforms import OCRTransform
 
@@ -53,7 +53,8 @@ class OCRTransformPack:
     @property
     def may_cause_intersections(self) -> bool:
         return any(
-            transform.may_cause_intersections for transform in self._all_transforms()
+            transform.probability > 0 and transform.may_cause_intersections
+            for transform in self._all_transforms()
         )
 
     def add_transform(

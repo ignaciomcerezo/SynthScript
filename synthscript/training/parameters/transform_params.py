@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from synthscript.datasets.image_transform_pack import ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
+from synthscript.transforms.image_transform_pack import ImageTransformPack
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
 from synthscript.transforms.transforms import ImageTransform, OCRTransform
 
 

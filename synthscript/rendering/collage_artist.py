@@ -10,11 +10,9 @@ from synthscript.ocr_units import OCRPage
 from synthscript.ocr_units.ocr_line import OCRLine
 from synthscript.shared.geometry_processing import get_union_rect
 from synthscript.shared.image_processing import crop_or_resize
+from synthscript.transforms.image_transform_pack import ImageTransformPack
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
 
-OCRTransformCallable = Callable[
-    [list[tuple[list[np.ndarray], list[Polygon]]]],
-    tuple[list[np.ndarray], list[Polygon]],
-]
 StrokeTransformCallable = Callable[[list[np.ndarray]], list[np.ndarray]]
 ImageTransformCallable = Callable[[np.ndarray], np.ndarray]
 
@@ -74,20 +72,16 @@ class CollageArtist:
         margins: (
             int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
         ) = 0,
-        img_poly_transform: OCRTransformCallable | None = None,
-        stroke_transform: StrokeTransformCallable | None = None,
-        background_transform: ImageTransformCallable | None = None,
-        global_image_transform: ImageTransformCallable | None = None,
+        mixed_transforms: OCRTransformPack | None = None,
+        pure_image_transforms: ImageTransformPack | None = None,
         refit_polygons: bool = True,
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
     ):
         self.tight_layout = tight_layout
         self._configure_margins(margins)
-        self.img_poly_transform = img_poly_transform
-        self.stroke_transform = stroke_transform
-        self.background_transform = background_transform
-        self.global_image_transform = global_image_transform
+        self.img_poly_transform = mixed_transforms
+        self.pure_image_transform = pure_image_transforms
         self.refit_polygons = refit_polygons
         self.overlay_polygons = overlay_polygons
         self.overlay_mbr = overlay_mbr
@@ -106,13 +100,9 @@ class CollageArtist:
         else:
             margin_sizes = {
                 "left": (margins["left"] if isinstance(margins, dict) else margins),
-                "right": (
-                    margins["right"] if isinstance(margins, dict) else margins
-                ),
+                "right": (margins["right"] if isinstance(margins, dict) else margins),
                 "top": (margins["top"] if isinstance(margins, dict) else margins),
-                "bottom": (
-                    margins["bottom"] if isinstance(margins, dict) else margins
-                ),
+                "bottom": (margins["bottom"] if isinstance(margins, dict) else margins),
             }
 
         self._margins = Margins(**margin_sizes)
@@ -124,9 +114,7 @@ class CollageArtist:
     @margins.setter
     def margins(
         self,
-        value: (
-            int | dict[Literal["left", "right", "top", "bottom"], int] | Margins
-        ),
+        value: int | dict[Literal["left", "right", "top", "bottom"], int] | Margins,
     ) -> None:
         self._configure_margins(value)
 
@@ -183,8 +171,8 @@ class CollageArtist:
             polygons = [line.polygon for line in lines]
             crops = [line.crop for line in lines]
 
-        if self.stroke_transform is not None:
-            crops = self.stroke_transform(crops)
+        if self.pure_image_transform:
+            crops = self.pure_image_transform.transform_strokes(crops)
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
         bg_h, bg_w = image_dimensions
@@ -206,8 +194,9 @@ class CollageArtist:
         canvas = crop_or_resize(
             bg_np, x0=x0, xf=xf, y0=y0, yf=yf, can_crop=can_crop
         ).copy()
-        if self.background_transform is not None:
-            canvas = self.background_transform(canvas)
+
+        if self.pure_image_transform is not None:
+            canvas = self.pure_image_transform.transform_background(canvas)
 
         canvas_h, canvas_w = canvas.shape[:2]
         for stroke_img, polygon in zip(crops, polygons, strict=True):
@@ -252,8 +241,8 @@ class CollageArtist:
 
             canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
 
-        if self.global_image_transform is not None:
-            canvas = self.global_image_transform(canvas)
+        if self.pure_image_transform is not None:
+            canvas = self.pure_image_transform.transform_global_image(canvas)
 
         if self.refit_polygons:
             # displace the polygons to the new dimensions of the image

@@ -9,25 +9,32 @@ from synthscript.datasets.base_annotation_dataset import (
 from synthscript.datasets.helpers.layout_generator import LayoutGenerator
 from synthscript.datasets.transcription.ocrdataset import OCRDataset
 from synthscript.ocr_units import OCRPage
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
+from synthscript.transforms.transforms import DatasetTransform
 
 
 class LayoutOCRDataset(OCRDataset):
     """
     Dataset variant intended to be used for OCR model training. It is built atop
     synthscript.datasets.OCRDataset, but implements more agressive layout modification:
-    When .refresh_layouts() is called, the base OCRDataset is copied and each page
-    modified, changing the layout (via InterparagraphTransform).
+    Sample transforms are applied when items are requested, as in OCRDataset.
+    Layout transforms configure whole-page generation; call refresh_layouts()
+    after changing them to regenerate the pages.
     """
 
     def __init__(
         self,
         annotations: Sequence[OCRPage],
-        layout_generator: LayoutGenerator,
+        layout_generator: LayoutGenerator | None = None,
         *,
         rng: RNGInput = None,
         cluster_transform_params: ClusterParams | None = None,
     ):
-        self._layout_generator = deepcopy(layout_generator)
+        self._layout_generator = (
+            LayoutGenerator()
+            if layout_generator is None
+            else deepcopy(layout_generator)
+        )
         self._base_annotations = annotations
         initial_rng = self._validate_rng(rng)
         self._layout_generator.rng = initial_rng
@@ -50,6 +57,27 @@ class LayoutOCRDataset(OCRDataset):
         """Regenerate annotations without resetting sampling or transform state."""
         self._annotated_pages = self._generate_layouts()
         self._recalculate_size_and_sampling_params()
+
+    @property
+    def layout_transforms(self) -> OCRTransformPack | None:
+        """Transforms used to generate complete pages on the next refresh."""
+        return self._layout_generator.transforms
+
+    def add_transform(self, transform: DatasetTransform | None) -> None:
+        """Append a transform applied when a sample is requested."""
+        super().add_transform(transform)
+
+    def set_transform(self, *transforms: DatasetTransform | None) -> None:
+        """Replace transforms applied when samples are requested."""
+        super().set_transform(*transforms)
+
+    def add_layout_transform(self, transform: DatasetTransform | None) -> None:
+        """Append a whole-page transform for the next layout refresh."""
+        self._layout_generator.add_transform(transform)
+
+    def set_layout_transform(self, *transforms: DatasetTransform | None) -> None:
+        """Replace whole-page transforms for the next layout refresh."""
+        self._layout_generator.set_transform(*transforms)
 
     @property
     def layout_generator(self) -> LayoutGenerator:

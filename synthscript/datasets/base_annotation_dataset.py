@@ -5,10 +5,13 @@ from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
 
-from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
-from synthscript.ocr_units.rendering import CollageArtist
+from synthscript.rendering import CollageArtist
+from synthscript.transforms.image_transform_pack import (
+    ImageTransform,
+    ImageTransformPack,
+)
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
 from synthscript.transforms.transforms import (
     BackgroundTransform,
     DatasetTransform,
@@ -45,7 +48,7 @@ T = TypeVar("T", bound="BaseAnnotationDataset")
 @dataclass(slots=True)
 class ClusterParams:
     tight_layout: bool = True
-    use_previous_page_in_context: bool = False
+    use_previous_page_in_context: bool = False  # TODO: implement this
     avoid_intersections: bool = True
 
 
@@ -54,8 +57,8 @@ class BaseAnnotationDataset(Dataset, ABC):
     _orders: list[int] | None
     _use_paragraphs: bool
     _use_full_pages: bool
-    _transforms: OCRTransformPack
-    _image_transforms: ImageTransformPack
+    _mixed_transforms: OCRTransformPack
+    _pure_image_transforms: ImageTransformPack
     _cluster_params: ClusterParams
     _renderer: CollageArtist
     _rng: np.random.Generator
@@ -78,10 +81,12 @@ class BaseAnnotationDataset(Dataset, ABC):
     def rng(self, value: RNGInput) -> None:
         self._rng = self._validate_rng(value)
 
-        if isinstance(getattr(self, "_transforms", None), OCRTransformPack):
-            self._transforms.rng = self._rng
-        if isinstance(getattr(self, "_image_transforms", None), ImageTransformPack):
-            self._image_transforms.rng = self._rng
+        if isinstance(getattr(self, "_mixed_transforms", None), OCRTransformPack):
+            self._mixed_transforms.rng = self._rng
+        if isinstance(
+            getattr(self, "_pure_image_transforms", None), ImageTransformPack
+        ):
+            self._pure_image_transforms.rng = self._rng
 
     @property
     def pages(self) -> list[str]:
@@ -109,7 +114,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     @cluster_params.setter
     def cluster_params(self, value: ClusterParams) -> None:
         self._cluster_params = value
-        self._transforms.avoid_intersections = value.avoid_intersections
+        self._mixed_transforms.avoid_intersections = value.avoid_intersections
         self._sync_renderer()
 
     @property
@@ -120,22 +125,15 @@ class BaseAnnotationDataset(Dataset, ABC):
         """Updates the dataset renderer aligned with the current configuration"""
         if hasattr(self, "_renderer"):
             self._renderer.tight_layout = self.cluster_params.tight_layout
-            self._renderer.img_poly_transform = self._transforms
-            self._renderer.stroke_transform = self._image_transforms.transform_strokes
-            self._renderer.background_transform = (
-                self._image_transforms.transform_background
-            )
-            self._renderer.global_image_transform = (
-                self._image_transforms.transform_global_image
-            )
+            self._renderer.img_poly_transform = self._mixed_transforms
+            self._renderer.pure_image_transform = self._pure_image_transforms
+
         else:
             self._renderer = CollageArtist(
                 tight_layout=self.cluster_params.tight_layout,
                 margins=0,
-                img_poly_transform=self._transforms,
-                stroke_transform=self._image_transforms.transform_strokes,
-                background_transform=self._image_transforms.transform_background,
-                global_image_transform=self._image_transforms.transform_global_image,
+                mixed_transforms=self._mixed_transforms,
+                pure_image_transforms=self._pure_image_transforms,
                 overlay_polygons=False,
                 overlay_mbr=False,
             )
@@ -373,26 +371,32 @@ class BaseAnnotationDataset(Dataset, ABC):
         return ann, selected_line_ids, order, identifier
 
     @property
-    def transforms(self) -> OCRTransformPack | None:
-        if self._transforms is None or self._transforms.is_identity:
+    def mixed_transforms(self) -> OCRTransformPack | None:
+        if (
+            self._mixed_transforms is None
+            or self._mixed_transforms.is_identity
+        ):
             return None
         else:
-            return self._transforms
+            return self._mixed_transforms
 
     @property
-    def image_transforms(self) -> ImageTransformPack | None:
-        if self._image_transforms is None or self._image_transforms.is_identity:
+    def pure_image_transforms(self) -> ImageTransformPack | None:
+        if (
+            self._pure_image_transforms is None
+            or self._pure_image_transforms.is_identity
+        ):
             return None
-        return self._image_transforms
+        return self._pure_image_transforms
 
     def add_transform(
         self,
         transform: DatasetTransform | None,
     ) -> None:
         if isinstance(transform, ImageTransform):
-            self._image_transforms.add_transform(transform)
+            self._pure_image_transforms.add_transform(transform)
         elif transform is not None:
-            self._transforms.add_transform(transform)
+            self._mixed_transforms.add_transform(transform)
 
     def set_transform(
         self,
@@ -413,11 +417,11 @@ class BaseAnnotationDataset(Dataset, ABC):
             ):
                 raise ValueError(f"Unsupported transform type {type(transform)}")
         transform: DatasetTransform | None
-        self._transforms = OCRTransformPack(
+        self._mixed_transforms = OCRTransformPack(
             avoid_intersections=self.cluster_params.avoid_intersections,
             rng=self.rng,
         )
-        self._image_transforms = ImageTransformPack(rng=self.rng)
+        self._pure_image_transforms = ImageTransformPack(rng=self.rng)
         for transform in transforms:
             self.add_transform(transform)
 
