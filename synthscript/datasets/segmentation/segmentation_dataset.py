@@ -10,10 +10,10 @@ from synthscript.datasets.base_annotation_dataset import (
     ClusterParams,
     RNGInput,
 )
-from synthscript.datasets.image_transform_pack import ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.datasets.segmentation.formatters import _formatter_type
 from synthscript.ocr_units import OCRPage
+from synthscript.transforms.image_transform_pack import ImageTransformPack
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
 
 
 class SegmentationDataset(BaseAnnotationDataset):
@@ -41,8 +41,8 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._use_paragraphs = False
         self._use_full_pages = False
         self.rng = rng
-        self._transforms: OCRTransformPack = OCRTransformPack(rng=self.rng)
-        self._image_transforms = ImageTransformPack(rng=self.rng)
+        self._mixed_transforms: OCRTransformPack = OCRTransformPack(rng=self.rng)
+        self._pure_image_transforms = ImageTransformPack(rng=self.rng)
         self._recalculate_size_and_sampling_params()
         self.return_bounding_boxes = return_bounding_boxes
         self._formatter: _formatter_type | None = None
@@ -52,7 +52,9 @@ class SegmentationDataset(BaseAnnotationDataset):
             if cluster_transform_params is not None
             else ClusterParams()
         )
-        self._transforms.avoid_intersections = self._cluster_params.avoid_intersections
+        self._mixed_transforms.avoid_intersections = (
+            self._cluster_params.avoid_intersections
+        )
         self._sync_renderer()
 
     def __repr__(self):

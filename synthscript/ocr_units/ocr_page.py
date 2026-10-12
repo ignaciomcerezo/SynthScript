@@ -29,7 +29,6 @@ class OCRPage:
     __slots__ = (
         "_graph",
         "background",
-        "full_transcription",
         "line_separator",
         "lines",
         "metadata",
@@ -47,7 +46,7 @@ class OCRPage:
         page_id: str,
         stroke: np.ndarray,
         background: np.ndarray,
-        line_separtor: str = "\n",
+        line_separator: str = "\n",
         metadata: dict[str, str] | None = None,
         paragraph_line_ids: list[list[str]] | None = None,
         paragraph_ids: list[str | None] | None = None,
@@ -59,7 +58,7 @@ class OCRPage:
         self.background = background
         self.page_id = str(page_id)
         self.metadata = dict(metadata or {})
-        self.line_separator = line_separtor
+        self.line_separator = line_separator
 
         list_lines = self._setup_lines(
             polygon_coords,
@@ -81,7 +80,7 @@ class OCRPage:
             )
 
         # only pages that lay inside of a paragraph have an sindex
-        self._set_indices_and_transcription()
+        self._set_indices()
 
     @classmethod
     def from_explicit_layout(
@@ -164,7 +163,7 @@ class OCRPage:
                     )
                 combined_ocr_page.lines[line.id] = line
 
-        combined_ocr_page._set_indices_and_transcription()
+        combined_ocr_page._set_indices()
 
         return combined_ocr_page
 
@@ -346,7 +345,7 @@ class OCRPage:
                 )
             )
 
-    def _set_indices_and_transcription(self) -> None:
+    def _set_indices(self) -> None:
         """Set paragraph/line indices and assemble the page transcription."""
         sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
@@ -354,10 +353,13 @@ class OCRPage:
             for line in paragraph.lines:
                 line.sindex = sindex
                 sindex += len(line.text) + len(self.line_separator)
+
+    @property
+    def full_transcription(self):
         lines = sorted(
             list(self.lines.values()), key=lambda line: line.sindex
         )  # ty: ignore[no-matching-overload]
-        self.full_transcription = self.line_separator.join(line.text for line in lines)
+        return self.line_separator.join(line.text for line in lines)
 
     def __repr__(self):
         return f"<OCRPage {self.page_id!r} with {self.order} lines>"

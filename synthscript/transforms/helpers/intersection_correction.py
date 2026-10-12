@@ -4,8 +4,8 @@ from shapely import Polygon
 from shapely.affinity import translate
 from shapely.prepared import prep
 
-from synthscript.datasets.helpers.polygon_separation import separate_polygons
 from synthscript.transforms.helpers.line_group_info import LineGroupInfo
+from synthscript.transforms.helpers.polygon_separation import separate_polygons
 
 
 def avoid_line_intersections(
@@ -21,7 +21,13 @@ def avoid_line_intersections(
 
     adjacent_distances = shapely.distance(polygons[:-1], polygons[1:])
     if np.all(adjacent_distances >= delta):
-        return polygons
+        # A short intervening line can leave two nonadjacent lines touching.
+        first, second = np.triu_indices(n, k=2)
+        polygon_array = np.asarray(polygons, dtype=object)
+        if np.all(
+            shapely.distance(polygon_array[first], polygon_array[second]) >= delta
+        ):
+            return polygons
 
     lg_info = LineGroupInfo.from_polygons(polygons)
     original_center = lg_info.center
@@ -143,6 +149,36 @@ def avoid_line_intersections(
             bx1 + movement[0],
             by1 + movement[1],
         ]
+
+    # The adjacent forward pass and its contraction can miss nonadjacent
+    # collisions when line widths or positions vary. Resolve each line against
+    # every already settled predecessor before restoring the group center.
+    for k in range(1, n):
+        previous = polygons[:k]
+        polygon = polygons[k]
+        if np.all(shapely.distance(previous, polygon) >= delta):
+            continue
+
+        previous_max = max(
+            (np.asarray(p.exterior.coords)[:, :2] @ reading_dir).max() for p in previous
+        )
+        coordinates = np.asarray(polygon.exterior.coords)[:, :2]
+        current_min = (coordinates @ reading_dir).min()
+        lo = 0.0
+        # Disjoint projections give a safe upper bound in any line layout.
+        hi = float(previous_max - current_min + delta + max(contact_epsilon, 1e-8))
+        for _ in range(binary_iterations):
+            if hi - lo <= 1e-3:
+                break
+            mid = (lo + hi) / 2
+            candidate = shapely.polygons(coordinates + mid * reading_dir)
+            if np.any(shapely.distance(previous, candidate) < delta):
+                lo = mid
+            else:
+                hi = mid
+        polygons[k] = translate(
+            polygon, xoff=hi * reading_dir[0], yoff=hi * reading_dir[1]
+        )
 
     bounds = shapely.bounds(polygons)
     new_center = (bounds[:, :2].min(axis=0) + bounds[:, 2:].max(axis=0)) / 2

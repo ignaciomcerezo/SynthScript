@@ -4,14 +4,14 @@ import operator
 import numpy as np
 from shapely.geometry import Polygon
 
-from synthscript.datasets.helpers.intersection_correction import (
-    avoid_line_intersections,
-    avoid_paragraph_intersections,
-)
 from synthscript.transforms import (
     LineTransform,
     PageTransform,
     ParagraphTransform,
+)
+from synthscript.transforms.helpers.intersection_correction import (
+    avoid_line_intersections,
+    avoid_paragraph_intersections,
 )
 from synthscript.transforms.transforms import OCRTransform
 

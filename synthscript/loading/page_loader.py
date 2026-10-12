@@ -18,18 +18,28 @@ from synthscript.shared.path_bundle import PathBundle
 def load_pages(
     *,
     root_path: PathBundle | Path | str | None = None,
-    pages: Collection[str | int] | None = None,
-    tasks: Collection[int] | None = None,
+    page_ids: Collection[str | int] | None = None,
+    task_ids: Collection[int] | None = None,
     combine_same_page_annotations: bool = True,
     length: int | None = None,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
 ) -> list[OCRPage]:
-    """Load PAGE-XML annotations from disk into OCRPage objects."""
+    """
+    Load PAGE-XML annotations from disk into OCRPage objects.
+    If page_ids or task_ids is given a value, the returned pages are reconciled
+    any of the two criterion (being in the pages or being in the tasks).
+    Transcription homogenizer is used to regularize the text present in the page XML at
+    load time.
+    """
     paths = (
         PathBundle(root_path) if not isinstance(root_path, PathBundle) else root_path
     )
-    wanted_tasks = set(tasks) if tasks is not None else None
-    wanted_pages = {str(page) for page in pages} if pages is not None else None
+    wanted_tasks = set(task_ids) if task_ids is not None else None
+    wanted_pages = {str(page) for page in page_ids} if page_ids is not None else None
+
+    if transcription_homogenizer is None:
+        print("Transcription homogenizer not provided. Using default ASTHomogenizer.")
+
     homogenizer = transcription_homogenizer or ASTHomogenizer()
 
     def acceptable(page_id: str, task_id: int | None) -> bool:

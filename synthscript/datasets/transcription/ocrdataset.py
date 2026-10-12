@@ -10,9 +10,9 @@ from synthscript.datasets.base_annotation_dataset import (
     ClusterParams,
     RNGInput,
 )
-from synthscript.datasets.image_transform_pack import ImageTransformPack
-from synthscript.datasets.ocr_transform_pack import OCRTransformPack
 from synthscript.ocr_units import OCRPage
+from synthscript.transforms.image_transform_pack import ImageTransformPack
+from synthscript.transforms.ocr_transform_pack import OCRTransformPack
 
 _OCRDataset_default_getitem_fields = Literal[
     "image",
@@ -63,11 +63,11 @@ class OCRDataset(BaseAnnotationDataset):
             else ClusterParams()
         )
         self.rng = rng
-        self._transforms: OCRTransformPack = OCRTransformPack(
+        self._mixed_transforms: OCRTransformPack = OCRTransformPack(
             avoid_intersections=self._cluster_params.avoid_intersections,
             rng=self.rng,
         )
-        self._image_transforms = ImageTransformPack(rng=self.rng)
+        self._pure_image_transforms = ImageTransformPack(rng=self.rng)
         self._sync_renderer()
 
     def __repr__(self):
