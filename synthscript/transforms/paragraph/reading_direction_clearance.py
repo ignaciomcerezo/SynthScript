@@ -3,7 +3,7 @@ from shapely.affinity import translate
 from shapely.geometry import Polygon
 
 from synthscript.shared.parameters import Parameter
-from synthscript.transforms.helpers.line_group_info import LineGroupInfo
+from synthscript.transforms.geometric_helpers.line_group_info import LineGroupInfo
 from synthscript.transforms.transforms import (
     ParagraphTransform,
     line_group_equivalent_type,
