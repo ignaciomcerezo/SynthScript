@@ -1,94 +1,117 @@
-# synthscript
+# SynthScript
 
-`synthscript` is a Python package for generating OCR training datasets from annotated document images and performing fine-tunign and RL on models. It provides a PyTorch-compatible `OCRDataset` class that samples variable-length sequences of document lines with optional augmentation transforms.
-
-## Overview
-
-This repository provides dataset generation and augmentation for handwritten document OCR. It is designed to:
-
-- ingest PAGE-XML annotations and document images (including exports from Label Studio),
-- extract and normalize image crops with automatic layout analysis,
-- produce an `OCRDataset` that samples contiguous line sequences at training time,
-- apply augmentation layout-aware transforms (line, paragraph, page and image transforms),
-- handle complex geometry with automatic intersection correction and stroke/background separation.
-
-Also defines a structural syntactic metric for LaTeX snippets that can be used to compute error in LaTeX transcriptions.
+SynthScript builds OCR training samples from annotated document pages. It loads
+PAGE-XML annotations as `OCRPage` objects, composes samples from 
+line images and polygons from a PyTorch-compatible datasets with configurable 
+sampling and augmentation configuration. 
+It also supports rendering pages from LaTeX code and metrics for comparing LaTeX
+transcriptions.
 
 ## Main components
 
-- **`synthscript.shared`**  
-  Shared data structures and utilities used across the pipeline.
-
-- **`synthscript.loading`**  
-  Loading the data, both from external sources (downloading images from a bucket) and organizing them on disk, and loading them from there.
-
-- **`synthscript.ocr_units`**
-  Core classes, used to perform the geometric analysis of the layout and represent a more structured version of the page.
-
-- **`synthscript.datasets`**  
-  The main `OCRDataset` (and other dataset variants) class for training, with configurable line-sequence sampling and clustering.
-
-- **`synthscript.transforms`**  
-  Image and geometry augmentation transforms: individual linea, paragraph and whole page layout transforms. Also implementes some image-only transforms, more typical of image augmentation.
-
-- **`synthscript.metric`**
-  LaTeX AST based on pylatexenc and weighted tree edit distance to compute structural distances between base truth transcription and prediction.
-
-## Package metadata
-
-- **Package name:** `synthscript`
-- **Python:** `>=3.10`
-- **Core dependencies:** `numpy`, `levenshtein`, `label-studio-sdk`, `lxml`, `opencv-python`, `pydantic`, `pylatexenc`, `python-dotenv`, `requests`, `shapely`, `tqdm`, `torch`, `zss`
-- **Training extras (`[train]`):** `torch`,  `torchvision`, `accelerate`, `trl`, `sentencepiece`, `protobuf`, `huggingface-hub`, `transformers`, `peft`, `pillow`; on Linux also `xformers`, `bitsandbytes`, `triton`, `cut-cross-entropy`, `unsloth-zoo`, and `unsloth`
-- **Dev extras (`[dev]`)**: `ipywidgets`, `ty`, `ipykernel`, `ruff`, `pytest`
-
-## Annotation format
-
-SynthScript uses PAGE-XML 2024-07-15 as its canonical annotation and exchange
-format. A dataset has this portable layout:
-
-```text
-data_in/
-├── images/
-│   ├── raw/
-│   ├── stroke/
-│   └── background/
-├── page/
-│   └── s0_pg123.xml
-└── exports/
-```
-
-`raw` contains the original image. `stroke` and `background` contain the two
-SynthScript-specific representations used to construct synthetic manuscripts;
-the PAGE document references them as `AlternativeImage` elements. Image paths
-in PAGE are relative and use POSIX separators, so the complete dataset can be
-moved between machines.
-
-Each PAGE file contains the line and paragraph geometry, original ground-truth
-text, reading order, orientation, and provenance for one annotation. Persisted
-coordinates are absolute integer pixels. Text homogenization is applied only
-while loading a dataset and never overwrites the PAGE ground truth.
-
-## Intended use
-
-The package is intended for OCR training workflows where:
-
-- source documents are segmented in regions, with each region having its corresponding transcription,
-- sampling variable-length sequences of document regions is desirable (single lines, paragraphs, full pages),
-- on-the-fly augmentation is desired during training,
-- geometric transforms (rotation, scaling, distortion) should be applied to line crops,
-- the dataset integrates with `torch.utils.data.Dataset` for PyTorch training (otherwise it probably can be adapted using custom formatters or other integration).
+- **Loading:** `synthscript.loading` reads and writes PAGE-XML. Interfaces for
+  Label Studio and an image bucket can populate the local dataset with the required
+  images and transcriptions.
+- **Page model:** `synthscript.ocr_units` represents pages (groups of paragraphs),
+  paragraphs (groups of lines), lines (transcription, geometry and image).
+- **Datasets:** `OCRDataset` returns image and transcription samples,
+  `SegmentationDataset` returns images and line polygons. Both support line
+  clusters, paragraphs, and full pages through their `orders` setting.
+- **Rendering and augmentation:** `CollageArtist` composes sampled lines with
+  stroke, background, geometry, and image transforms. `LatexRenderer` creates an
+  `OCRPage` from a supported single-page LaTeX source.
+- **Metrics and training adapters:** `synthscript.metric` provides LaTeX
+  canonicalization and weighted TED from an AST. `synthscript.training`
+  contains helpers for vision model and YOLO segmentation/OBB training.
 
 ## Installation
 
-Install the core package:
+Python 3.10 or newer is required. From the repository root:
 
 ```bash
-pip install .
+python -m pip install .
 ```
 
-Install training-related extras:
+Install the optional dependencies:
 
 ```bash
-pip install ".[train]"
+python -m pip install ".[latex]"  # resvg-py for LaTeX rendering
+python -m pip install ".[train]"  # model-training dependencies
+python -m pip install ".[dev]"    # pytest, Ruff, and development tools
 ```
+
+LaTeX rendering also requires `latex` or `xelatex` and `dvisvgm` on `PATH`.
+The YOLO trainer modules import `ultralytics`, which is not currently listed
+in the `train` extra. Dependency versions and platform conditions are defined
+in [pyproject.toml](pyproject.toml).
+
+## Dataset workflow
+
+The local data layout managed by `PathBundle` is:
+
+```text
+data_in/
+|---images/
+|   |-- raw/
+|   |-- stroke/
+|   \-- background/
+|
+|---page/
+|   \-- s0_pg123.xml
+|
+\---exports/
+```
+
+SynthScript uses PAGE-XML 2024-07-15 for stored annotations. A PAGE file holds
+line and paragraph geometry, reading order, orientation, original transcription
+and other information for one annotation. It references the raw image and the
+SynthScript stroke and background images by relative paths. Coordinates are
+stored as integer pixels. 
+`load_pages()` can combine annotations of the same physical page and applies
+transcription homogenization while loading; it does not rewrite the PAGE ground 
+truth.
+
+Once the images and PAGE files are in `data_in/`, create an OCR dataset:
+
+```python
+from synthscript.datasets import OCRDataset
+from synthscript.loading import load_pages
+
+pages = load_pages()
+dataset = OCRDataset(pages, rng=420)
+dataset.orders = [1, 2, "paragraph", "page"]
+
+sample = dataset[0]
+image = sample["image"]
+text = sample["text"]
+```
+
+Assign `orders` before requesting samples. Integer orders select contiguous
+line sequences; `"paragraph"` and `"page"` select those larger units. Sample
+transforms can be added with `add_transform()` or replaced with
+`set_transform()`.
+
+`LatexRenderer` is another way to construct an `OCRPage`:
+
+```python
+from synthscript.rendering.latex import LatexRenderer
+
+page = LatexRenderer().render(r"A line with $x^2$.")
+```
+
+It supports a defined subset of prose, math, and TikZ in a single page and
+raises `UnsupportedLatexError` for unsupported source constructs it detects.
+The resulting page can be passed to `OCRDataset` without rerunning TeX for
+each sample.
+
+## Tests
+
+Implementation tests use local or synthetic objects and do not need the
+annotation server or image bucket:
+
+```bash
+python -m pytest test/implementation
+```
+
+Renderer cases requiring local TeX tools or `resvg_py` are skipped when those
+dependencies are unavailable.

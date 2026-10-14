@@ -6,7 +6,10 @@ from shapely.geometry import Polygon
 
 from synthscript.shared.geometry_processing import calculate_reading_angle
 from synthscript.shared.parameters import Parameter
-from synthscript.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
+from synthscript.transforms.geometric_helpers.line_group_info import (
+    LineGroupInfo,
+    Vector2D,
+)
 from synthscript.transforms.transforms import (
     ParagraphTransform,
     line_group_equivalent_type,
@@ -23,9 +26,9 @@ class ParagraphTilt(ParagraphTransform):
     ):
         self.relative = Parameter(strength)
         self.probability = probability
-        assert self.relative.is_bounded(-1, 1), (
-            "The strength of the tilt must lie be between (-1, 1)."
-        )
+        assert self.relative.is_bounded(
+            -1, 1
+        ), "The strength of the tilt must lie be between (-1, 1)."
         self._tilt_horizontal = tilt_axis == "horizontal"
         self.may_cause_intersections = True
 

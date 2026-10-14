@@ -4,8 +4,10 @@ from shapely import Polygon
 from shapely.affinity import translate
 from shapely.prepared import prep
 
-from synthscript.transforms.helpers.line_group_info import LineGroupInfo
-from synthscript.transforms.helpers.polygon_separation import separate_polygons
+from synthscript.transforms.geometric_helpers.line_group_info import LineGroupInfo
+from synthscript.transforms.geometric_helpers.polygon_separation import (
+    separate_polygons,
+)
 
 
 def avoid_line_intersections(

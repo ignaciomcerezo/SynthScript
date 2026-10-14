@@ -37,7 +37,7 @@ def renderer():
     converter = os.environ.get("SYNTHSCRIPT_TEST_DVISVGM", "dvisvgm")
     if not shutil.which(engine) or not shutil.which(converter):
         pytest.skip("Real rendering tests require latex and dvisvgm.")
-    pytest.importorskip("resvg_py")
+    pytest.importorskip("resvg_py", exc_type=ImportError)
     return LatexRenderer(engine=engine, dvisvgm=converter, dpi=144)
 
 

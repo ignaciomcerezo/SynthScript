@@ -6,7 +6,8 @@ from shapely import Polygon
 
 def calculate_reading_angle(polygon: Polygon) -> float:
     """
-    Calcula el ángulo "de lectura" de una caja fijando el lado más largo de su rectángulo delimitador mínimo.
+    Calculates the reading angle of a box fixing the longest side of its oriented
+    bounding box.
     """
     min_rect = polygon.minimum_rotated_rectangle
 
@@ -38,15 +39,14 @@ def calculate_reading_angle(polygon: Polygon) -> float:
 
 def get_union_rect(polys: Sequence[Polygon]) -> tuple[float, float, float, float]:
     """
-    Dada una lista coordenadas de cajas imagen con el formato
-    (x1, y1, x2, y2), devuelve la bounding box que las contiene a todas.
+    Given a list of polygons, returns their bounding box.
     """
     if not polys:
         raise ValueError(
             "Cannot extract a union rectangle from an empty sequence of polygons."
         )
-    x1 = min(p.bounds[0] for p in polys)
-    y1 = min(p.bounds[1] for p in polys)
-    x2 = max(p.bounds[2] for p in polys)
-    y2 = max(p.bounds[3] for p in polys)
-    return x1, y1, x2, y2
+    x0 = min(p.bounds[0] for p in polys)
+    y0 = min(p.bounds[1] for p in polys)
+    xf = max(p.bounds[2] for p in polys)
+    yf = max(p.bounds[3] for p in polys)
+    return x0, y0, xf, yf

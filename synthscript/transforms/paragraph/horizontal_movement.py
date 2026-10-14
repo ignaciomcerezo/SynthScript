@@ -9,7 +9,7 @@ from shapely.geometry import Polygon
 from synthscript.shared.parameters import (
     Parameter,
 )
-from synthscript.transforms.helpers.line_group_info import LineGroupInfo
+from synthscript.transforms.geometric_helpers.line_group_info import LineGroupInfo
 from synthscript.transforms.transforms import (
     ParagraphFromLineTransform,
     line_group_equivalent_type,
@@ -120,7 +120,10 @@ class HorizontalMovement(ParagraphFromLineTransform):
             )
 
             delta = self.amplitude() * np.cos(  # ty: ignore[call-non-callable]
-                2 * np.pi * distance_in_reading_dir / self.period()  # ty: ignore[call-non-callable]
+                2
+                * np.pi
+                * distance_in_reading_dir
+                / self.period()  # ty: ignore[call-non-callable]
             )
             v = delta * horizontal_direction
 

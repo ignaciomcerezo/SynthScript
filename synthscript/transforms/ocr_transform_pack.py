@@ -9,7 +9,7 @@ from synthscript.transforms import (
     PageTransform,
     ParagraphTransform,
 )
-from synthscript.transforms.helpers.intersection_correction import (
+from synthscript.transforms.geometric_helpers.intersection_correction import (
     avoid_line_intersections,
     avoid_paragraph_intersections,
 )
