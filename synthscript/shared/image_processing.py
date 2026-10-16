@@ -24,111 +24,12 @@ def to_grayscale(image: np.ndarray) -> np.ndarray:
     )
 
 
-def extract_stroke_and_stroke_mask(
-    page_image_array: np.ndarray,
-    background_diameter: int = 15,
-    small_diameter: int | None = None,  # 1 or 3 before
-    threshold: float = 8.0,
-    min_area: int = 3,
-    # max_area: int = 10000,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Extracts the strokes and the stroke mask from a page scan.
-    """
-
-    if page_image_array.dtype != np.uint8:
-        page_image_array = page_image_array.astype(np.uint8)
-
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (background_diameter, background_diameter),
-    )
-
-    background = cv2.morphologyEx(
-        page_image_array,
-        cv2.MORPH_CLOSE,
-        kernel,
-    )
-
-    residual = cv2.subtract(background, page_image_array)
-
-    _, mask = cv2.threshold(residual, threshold, 255, cv2.THRESH_BINARY)
-
-    if small_diameter is not None:
-        small_kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE,
-            (small_diameter, small_diameter),
-        )
-
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_OPEN,
-            small_kernel,
-        )
-
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
-        mask,
-        connectivity=8,
-    )
-
-    areas = stats[:, cv2.CC_STAT_AREA]
-    valid_labels = areas >= min_area  # & (areas <= max_area)
-    valid_labels[0] = False
-
-    conn = np.zeros(num_labels, dtype=np.uint8)
-    conn[valid_labels] = 255
-
-    clean_mask = conn[labels]  # ty: ignore[invalid-argument-type]
-
-    stroke_residual = cv2.bitwise_and(residual, residual, mask=clean_mask)
-
-    return (
-        stroke_residual,
-        clean_mask,
-    )
-
-
-def extract_border_mask(
-    image_array: np.ndarray,
-    dark_threshold: int = 50,
-    border_margin: int = 10,
-) -> np.ndarray:
-    """Detects dark connected components attached to or near the image edges."""
-    if image_array.ndim == 3:
-        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = image_array
-
-    _, dark_mask = cv2.threshold(gray, dark_threshold, 255, cv2.THRESH_BINARY_INV)
-
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
-        dark_mask, connectivity=8
-    )
-
-    h, w = gray.shape
-    border_mask = np.zeros((h, w), dtype=np.uint8)
-
-    for label in range(1, num_labels):
-        x, y, comp_w, comp_h, _ = stats[label]
-
-        touches_edge = (
-            x <= border_margin
-            or y <= border_margin
-            or (x + comp_w) >= (w - border_margin)
-            or (y + comp_h) >= (h - border_margin)
-        )
-
-        if touches_edge:
-            border_mask[labels == label] = 255
-
-    return border_mask
-
-
 def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
-    scale_factor = M / max(img_array.shape)
+    height, width = img_array.shape[:2]
+    scale_factor = M / max(height, width)
     size = (
-        int(np.ceil(img_array.shape[0] * scale_factor)),
-        int(np.ceil(img_array.shape[1] * scale_factor)),
+        int(np.ceil(width * scale_factor)),
+        int(np.ceil(height * scale_factor)),
     )
     if scale_factor < 1:
         return cv2.resize(img_array, size, interpolation=cv2.INTER_AREA)
@@ -136,65 +37,6 @@ def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
         return cv2.resize(img_array, size, interpolation=cv2.INTER_CUBIC)
     else:
         return img_array
-
-
-def separate_background_and_stroke(
-    image: np.ndarray,
-    out_longest_side: int = DATASET_LONGEST_SIZE_PX,
-    processing_longest_side: int = PROCESSING_LONGEST_SIDE_PX,
-    # inpaint_longest_side: int,
-    *,
-    background_diameter: int = 15,
-    small_diameter: int | None = None,  #  1
-    threshold: float = 8.0,
-    min_area: int = 3,
-    inpaint_dilation: int = 3,
-    inpaint_radius: int = 1,
-    # max_area: int = 10000,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Separates a black and white page image or scan into its stroke and background components.
-    """
-
-    image = to_grayscale(image)
-
-    image_array = _resize_by_longest_side(image, processing_longest_side)
-
-    strokes, stroke_mask = extract_stroke_and_stroke_mask(
-        image_array,
-        background_diameter,
-        small_diameter,
-        threshold,
-        min_area,  # , max_area
-    )
-
-    border_mask = extract_border_mask(image_array)
-
-    combined_mask = cv2.bitwise_or(stroke_mask, border_mask)
-
-    if inpaint_dilation > 0:
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE,
-            (inpaint_dilation * 2 + 1, inpaint_dilation * 2 + 1),
-        )
-        inpaint_mask = cv2.dilate(combined_mask, kernel, iterations=1)
-    else:
-        inpaint_mask = combined_mask
-
-    # inpaint_mask = _resize_by_longest_side(inpaint_mask, inpaint_longest_side)
-    # image_array = _resize_by_longest_side(image_array, inpaint_longest_side)
-
-    clean_background = cv2.inpaint(
-        image_array,
-        inpaint_mask,
-        inpaintRadius=inpaint_radius,
-        flags=cv2.INPAINT_TELEA,
-    )
-
-    clean_background = _resize_by_longest_side(clean_background, out_longest_side)
-    strokes = _resize_by_longest_side(strokes, out_longest_side)
-
-    return clean_background, strokes
 
 
 def crop_or_resize(
@@ -295,3 +137,186 @@ def crop_image_with_polygon(
     bgra_crop[:, :, 3] = local_mask
 
     return bgra_crop
+
+
+def extract_stroke_and_stroke_mask(
+    page_image_array: np.ndarray,
+    background_diameter: int = 21,
+    small_diameter: int | None = None,
+    threshold: float = 10.0,
+    core_threshold: float = 24.0,
+    min_area: int = 15,
+    min_span: int = 5,
+    median_blur_preprocess: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extracts the strokes and the stroke mask from a page scan using
+    median-stabilized background estimation and hysteresis component filtering.
+    """
+    if page_image_array.dtype != np.uint8:
+        page_image_array = page_image_array.astype(np.uint8)
+
+    # median filter to supress bright/dark sensor dots before estimation.
+    # we keep the original array for residual subtraction
+    if median_blur_preprocess:
+        denoised_for_bg = cv2.medianBlur(page_image_array, 3)
+    else:
+        denoised_for_bg = page_image_array
+
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (background_diameter, background_diameter),
+    )
+
+    background = cv2.morphologyEx(
+        denoised_for_bg,
+        cv2.MORPH_CLOSE,
+        kernel,
+    )
+
+    residual = cv2.subtract(background, page_image_array)
+
+    # two thresholds: one detects the "soft" edges of the strokes, the other isolates
+    # the center of the ink strokes
+    _, mask_low = cv2.threshold(residual, threshold, 255, cv2.THRESH_BINARY)
+    _, mask_core = cv2.threshold(residual, core_threshold, 255, cv2.THRESH_BINARY)
+
+    if small_diameter is not None and small_diameter > 1:
+        small_kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (small_diameter, small_diameter),
+        )
+        mask_low = cv2.morphologyEx(
+            mask_low,
+            cv2.MORPH_OPEN,
+            small_kernel,
+        )
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask_low,
+        connectivity=8,
+    )
+
+    areas = stats[:, cv2.CC_STAT_AREA]
+    widths = stats[:, cv2.CC_STAT_WIDTH]
+    heights = stats[:, cv2.CC_STAT_HEIGHT]
+
+    # no components without a core pixel survive
+    has_ink_core = np.zeros(num_labels, dtype=bool)
+    core_labels = np.unique(labels[mask_core > 0])
+    has_ink_core[core_labels] = True  # ty: ignore[invalid-assignment]
+
+    # components w/ a core pixel that satisfy either the minimum area criterion or
+    # the length criterion are kept.
+    valid_geometry = (areas >= min_area) | (np.maximum(widths, heights) >= min_span)
+    valid_labels = has_ink_core & valid_geometry
+    valid_labels[0] = False
+
+    conn = np.zeros(num_labels, dtype=np.uint8)
+    conn[valid_labels] = 255
+
+    clean_mask = conn[labels]  # ty: ignore[invalid-argument-type]
+
+    stroke_residual = cv2.bitwise_and(residual, residual, mask=clean_mask)
+
+    return (
+        stroke_residual,
+        clean_mask,
+    )
+
+
+def extract_border_mask(
+    image_array: np.ndarray,
+    dark_threshold: int = 50,
+    border_margin: int = 10,
+) -> np.ndarray:
+    """Detects dark connected components attached to or near the image edges."""
+    gray = to_grayscale(image_array)
+
+    _, dark_mask = cv2.threshold(gray, dark_threshold, 255, cv2.THRESH_BINARY_INV)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        dark_mask, connectivity=8
+    )
+
+    h, w = gray.shape
+    x = stats[:, cv2.CC_STAT_LEFT]
+    y = stats[:, cv2.CC_STAT_TOP]
+    comp_w = stats[:, cv2.CC_STAT_WIDTH]
+    comp_h = stats[:, cv2.CC_STAT_HEIGHT]
+
+    touches_edge = (
+        (x <= border_margin)
+        | (y <= border_margin)
+        | ((x + comp_w) >= (w - border_margin))
+        | ((y + comp_h) >= (h - border_margin))
+    )
+    touches_edge[0] = False
+
+    conn = np.zeros(num_labels, dtype=np.uint8)
+    conn[touches_edge] = 255
+
+    return conn[labels]  # ty: ignore[invalid-argument-type]
+
+
+def separate_background_and_stroke(
+    image: np.ndarray,
+    out_longest_side: int = DATASET_LONGEST_SIZE_PX,
+    processing_longest_side: int = PROCESSING_LONGEST_SIDE_PX,
+    *,
+    background_diameter: int = 21,
+    small_diameter: int | None = None,
+    threshold: float = 10,
+    core_threshold: float = 24,
+    min_area: int = 15,
+    min_span: int = 5,
+    inpaint_dilation: int = 3,
+    inpaint_radius: int = 1,
+    median_blur_preprocess: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Separates a black and white page image or scan into its stroke and background components.
+    """
+    image = to_grayscale(image)
+
+    image_array = _resize_by_longest_side(image, processing_longest_side)
+
+    strokes, stroke_mask = extract_stroke_and_stroke_mask(
+        image_array,
+        background_diameter=background_diameter,
+        small_diameter=small_diameter,
+        threshold=threshold,
+        core_threshold=core_threshold,
+        min_area=min_area,
+        min_span=min_span,
+        median_blur_preprocess=median_blur_preprocess,
+    )
+
+    border_mask = extract_border_mask(image_array)
+
+    if inpaint_dilation > 0:
+        dilation_kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (inpaint_dilation * 2 + 1, inpaint_dilation * 2 + 1),
+        )
+
+        dilated_border_mask = cv2.dilate(border_mask, dilation_kernel, iterations=1)
+        strokes[dilated_border_mask > 0] = 0
+
+        combined_mask = cv2.bitwise_or(stroke_mask, border_mask)
+        inpaint_mask = cv2.dilate(combined_mask, dilation_kernel, iterations=1)
+    else:
+        strokes[border_mask > 0] = 0
+        inpaint_mask = cv2.bitwise_or(stroke_mask, border_mask)
+
+    clean_background = cv2.inpaint(
+        image_array,
+        inpaint_mask,
+        inpaintRadius=inpaint_radius,
+        flags=cv2.INPAINT_TELEA,
+    )
+
+    clean_background = _resize_by_longest_side(clean_background, out_longest_side)
+    strokes = _resize_by_longest_side(strokes, out_longest_side)
+
+    return clean_background, strokes
