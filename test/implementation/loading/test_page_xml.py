@@ -449,7 +449,7 @@ def test_load_page_xml_reads_raw_png_dimensions_without_decoding(
     assert set(decoded_paths) == {stroke_path, background_path}
 
 
-def test_label_studio_writes_page_directly(
+def test_label_studio_writes_page_with_inferred_reading_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -493,11 +493,56 @@ def test_label_studio_writes_page_directly(
             "direction": "right",
         }
     )
+    lower_rectangle = RectangleResult.model_validate(
+        {
+            "id": "lower box",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "origin": "manual",
+            "from_name": "img_regions",
+            "original_width": 120,
+            "original_height": 80,
+            "image_rotation": 0,
+            "value": {
+                "x": 10,
+                "y": 30,
+                "width": 80,
+                "height": 10,
+                "rotation": 0,
+                "rectanglelabels": ["line"],
+            },
+        }
+    )
+    lower_transcription = SimplifiedTextCorrectionResult.model_validate(
+        {
+            "id": "lower text",
+            "to_name": "image",
+            "type": "textarea",
+            "origin": "manual",
+            "from_name": "correction",
+            "value": {"text": ["lower"]},
+        }
+    )
+    lower_relation = RelationResult.model_validate(
+        {
+            "from_id": "lower box",
+            "to_id": "lower text",
+            "type": "relation",
+            "direction": "right",
+        }
+    )
     annotation = SimpleNamespace(
         completed_by=1,
         updated_by=1,
         id=9,
-        result=[rectangle, transcription, relation],
+        result=[
+            lower_rectangle,
+            lower_transcription,
+            lower_relation,
+            rectangle,
+            transcription,
+            relation,
+        ],
         project=4,
         unique_id="annotation-9",
         ground_truth=True,
@@ -535,11 +580,24 @@ def test_label_studio_writes_page_directly(
         )
     )
     loaded = load_page_xml(xml_path, paths)
-    assert loaded.full_transcription == r"$x & y$"
+    assert [paragraph.line_ids for paragraph in loaded.paragraphs] == [
+        ["box id-text id", "lower box-lower text"]
+    ]
+    assert loaded.full_transcription == "$x & y$\nlower"
     assert loaded.metadata["label_studio.task_id"] == "77"
     assert loaded.lines["box id-text id"].polygon.bounds == pytest.approx(
         (11, 8, 107, 33)
     )
+    runtime_page = load_pages(
+        root_path=paths,
+        transcription_homogenizer=lambda text: text,
+    )[0]
+    assert [paragraph.line_ids for paragraph in runtime_page.paragraphs] == [
+        ["box id-text id", "lower box-lower text"]
+    ]
+    assert runtime_page.full_transcription == loaded.full_transcription
+    assert runtime_page.lines["box id-text id"].sindex == 0
+    assert runtime_page.lines["lower box-lower text"].sindex == len("$x & y$\n")
 
 
 def test_label_studio_checks_page_xml_creation_against_remote_update(

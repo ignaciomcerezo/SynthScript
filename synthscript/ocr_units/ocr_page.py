@@ -13,10 +13,8 @@ from synthscript.shared.graph_utilities import (
     get_connected_components,
     subdictionary,
 )
-from synthscript.shared.image_processing import (
-    crop_image_with_polygon,
-    to_grayscale,
-)
+from synthscript.shared.image_processing import to_grayscale
+from synthscript.shared.line_image_splitter import LineImageSplitter
 
 
 class OCRPage:
@@ -50,6 +48,7 @@ class OCRPage:
         metadata: dict[str, str] | None = None,
         paragraph_line_ids: list[list[str]] | None = None,
         paragraph_ids: list[str | None] | None = None,
+        line_image_splitter: LineImageSplitter | None = None,
     ):
         stroke = to_grayscale(stroke)
         background = to_grayscale(background)
@@ -59,6 +58,7 @@ class OCRPage:
         self.page_id = str(page_id)
         self.metadata = dict(metadata or {})
         self.line_separator = line_separator
+        splitter = line_image_splitter or LineImageSplitter(remove_shared_ink=False)
 
         list_lines = self._setup_lines(
             polygon_coords,
@@ -66,6 +66,7 @@ class OCRPage:
             line_ids,
             rotations,
             stroke,
+            splitter,
         )
 
         self.lines = {line.id: line for line in list_lines}
@@ -78,6 +79,8 @@ class OCRPage:
                 paragraph_line_ids,
                 paragraph_ids=paragraph_ids,
             )
+
+        splitter.resolve(self.paragraphs, stroke.shape)
 
         # only pages that lay inside of a paragraph have an sindex
         self._set_indices()
@@ -204,6 +207,7 @@ class OCRPage:
         line_ids: list[str],
         rotations: list[float],
         stroke: np.ndarray,
+        splitter: LineImageSplitter,
     ) -> list[OCRLine]:
 
         if not (
@@ -246,11 +250,11 @@ class OCRPage:
             raise ValueError("Line rotations must be finite.")
 
         lines = []
+        crops = splitter.split(stroke, polygons)
 
-        for polygon, transcription, line_id, rotation in zip(
-            polygons, transcriptions, line_ids, rotations, strict=True
+        for polygon, transcription, line_id, rotation, stroke_crop in zip(
+            polygons, transcriptions, line_ids, rotations, crops, strict=True
         ):
-            stroke_crop = crop_image_with_polygon(stroke, polygon)
             lines.append(
                 OCRLine(
                     id=line_id,

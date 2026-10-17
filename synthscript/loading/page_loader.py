@@ -12,6 +12,7 @@ from synthscript.loading.page_xml.validation import parse_xml_document
 from synthscript.metric.homogenizer.ast_homogenizer import ASTHomogenizer
 from synthscript.metric.homogenizer.homogenizer import TextHomogenizer
 from synthscript.ocr_units.ocr_page import OCRPage
+from synthscript.shared.line_image_splitter import LineImageSplitter
 from synthscript.shared.path_bundle import PathBundle
 
 
@@ -23,6 +24,7 @@ def load_pages(
     combine_same_page_annotations: bool = True,
     length: int | None = None,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
+    line_image_splitter: LineImageSplitter | None = None,
 ) -> list[OCRPage]:
     """
     Load PAGE-XML annotations from disk into OCRPage objects.
@@ -30,6 +32,7 @@ def load_pages(
     any of the two criterion (being in the pages or being in the tasks).
     Transcription homogenizer is used to regularize the text present in the page XML at
     load time.
+    Line image splitter crops stroke lines and conservatively assigns shared ink.
     """
     paths = (
         PathBundle(root_path) if not isinstance(root_path, PathBundle) else root_path
@@ -41,6 +44,7 @@ def load_pages(
         print("Transcription homogenizer not provided. Using default ASTHomogenizer.")
 
     homogenizer = transcription_homogenizer or ASTHomogenizer()
+    splitter = line_image_splitter or LineImageSplitter()
 
     def acceptable(page_id: str, task_id: int | None) -> bool:
         matches_page = wanted_pages is not None and page_id in wanted_pages
@@ -63,6 +67,7 @@ def load_pages(
             document,
             xml_path,
             transcription_homogenizer=homogenizer,
+            line_image_splitter=splitter,
         )
         pages_by_id[page.page_id].append(page)
         accepted_count += 1

@@ -33,6 +33,7 @@ from synthscript.metric.homogenizer.homogenizer import TextHomogenizer
 from synthscript.ocr_units import OCRPage
 from synthscript.shared.geometry_processing import calculate_reading_angle
 from synthscript.shared.image_handling import read_image_shape
+from synthscript.shared.line_image_splitter import LineImageSplitter
 from synthscript.shared.path_bundle import PathBundle
 
 _WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[/\\]")
@@ -341,6 +342,7 @@ def load_page_xml_document(
     xml_path: Path,
     *,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
+    line_image_splitter: LineImageSplitter | None = None,
 ) -> OCRPage:
     """Load a parsed PAGE document into SynthScript's in-memory model."""
     validate_page_xml_document(document, xml_path)
@@ -437,6 +439,7 @@ def load_page_xml_document(
         metadata=metadata,
         paragraph_line_ids=paragraph_line_ids,
         paragraph_ids=paragraph_ids,
+        line_image_splitter=line_image_splitter,
     )
 
 
@@ -445,6 +448,7 @@ def load_page_xml(
     paths: PathBundle,
     *,
     transcription_homogenizer: TextHomogenizer | Callable[[str], str] | None = None,
+    line_image_splitter: LineImageSplitter | None = None,
 ) -> OCRPage:
     """Load the supported PAGE subset into SynthScript's in-memory model."""
     del paths  # Image references are intentionally resolved relative to the XML file.
@@ -454,4 +458,5 @@ def load_page_xml(
         document,
         xml_path,
         transcription_homogenizer=transcription_homogenizer,
+        line_image_splitter=line_image_splitter,
     )

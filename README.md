@@ -86,6 +86,22 @@ image = sample["image"]
 text = sample["text"]
 ```
 
+`load_pages()` uses `LineImageSplitter` to crop each PAGE line from the stroke
+image. By default it solves clear pixel-level overlaps between adjacent
+lines of the same paragraph: a shared component is removed from one crop only
+when the other line has one "connected extension" at least 1.5 times its size and
+the first line's containing component has at most 10% as much ink outside the
+shared component. Smaller or ambiguous overlaps remain duplicated. This changes
+the in-memory crop alpha, not the saved PAGE-XML or line polygons. 
+
+To retain every shared pixel, pass
+`line_image_splitter=LineImageSplitter(remove_shared_ink=False)` 
+to`load_pages()` after importing `LineImageSplitter` from
+`synthscript.shared.line_image_splitter`. 
+
+Direct `OCRPage` construction and `load_page_xml()` keep the original
+crops unless a splitter is passed explicitly.
+
 Assign `orders` before requesting samples. Integer orders select contiguous
 line sequences; `"paragraph"` and `"page"` select those larger units. Sample
 transforms can be added with `add_transform()` or replaced with
