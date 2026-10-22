@@ -1,0 +1,1 @@
+from .stroke_mask_convex_hull import StrokeMaskConvexHull as StrokeMaskConvexHull
